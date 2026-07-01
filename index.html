@@ -1,0 +1,3375 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Censo Comunidades · Bolivia</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --ink:#13201c; --paper:#f6f4ee; --card:#fffdfa; --line:#e3e1d4;
+    --agua:#1f7a8c; --agua-d:#155e6d; --agua-l:#cfeaf0;
+    --tierra:#b56b45; --verde:#5c8a3a; --sol:#dba017; --rojo:#c44536;
+    --muted:#707a73; --shadow:0 2px 10px rgba(19,32,28,.08);
+    --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;
+    background:var(--paper);color:var(--ink);line-height:1.4;
+    -webkit-font-smoothing:antialiased;height:100%;overflow:hidden;
+    display:flex;flex-direction:column;
+  }
+  button,select,input{font-family:inherit}
+  header{
+    background:linear-gradient(135deg,var(--agua) 0%,var(--agua-d) 100%);
+    color:#fff;padding:calc(10px + var(--safe-t)) 16px 10px;flex:0 0 auto;
+    box-shadow:0 2px 14px rgba(19,32,28,.18);position:relative;z-index:60;
+  }
+  header h1{font-size:1.08rem;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:7px}
+  header .sub{font-size:.7rem;opacity:.82;margin-top:1px}
+  .tabs{display:flex;background:rgba(0,0,0,.18);border-radius:9px;padding:3px;margin-top:9px;gap:3px}
+  .tab{flex:1;text-align:center;padding:7px 0;border-radius:7px;font-size:.78rem;font-weight:600;
+    color:rgba(255,255,255,.75);cursor:pointer;border:none;background:transparent;transition:.15s}
+  .tab.activo{background:#fff;color:var(--agua-d)}
+  .filtros{background:var(--card);border-bottom:1px solid var(--line);padding:9px 12px;
+    display:flex;gap:7px;flex-wrap:nowrap;overflow-x:auto;flex:0 0 auto;z-index:55;-webkit-overflow-scrolling:touch}
+  .filtros::-webkit-scrollbar{display:none}
+  .campo{display:flex;flex-direction:column;gap:2px;flex:0 0 auto;min-width:118px}
+  .campo.buscar{flex:1;min-width:130px}
+  .campo label{font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .campo select,.campo input{padding:6px 8px;border:1px solid var(--line);border-radius:7px;
+    background:#fff;font-size:.8rem;color:var(--ink);max-width:140px}
+  .campo.buscar input{max-width:none;width:100%}
+  .campo select:focus,.campo input:focus{outline:2px solid var(--agua-l);border-color:var(--agua)}
+  .btn-limpiar{flex:0 0 auto;padding:6px 11px;background:var(--tierra);color:#fff;border:none;border-radius:7px;
+    font-size:.76rem;font-weight:700;align-self:flex-end;height:31px}
+  main{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .vista{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;padding-bottom:calc(14px + var(--safe-b))}
+  .vista.activa{display:block}
+  #vMapa{display:none;flex:1;position:relative}
+  #vMapa.activa{display:flex}
+  #mapaEl{flex:1;width:100%}
+  .mapa-resumen{position:absolute;top:10px;left:10px;right:10px;z-index:30;
+    background:rgba(255,253,250,.95);backdrop-filter:blur(6px);border-radius:11px;padding:9px 13px;
+    box-shadow:var(--shadow);display:flex;gap:14px;font-size:.74rem;color:var(--muted)}
+  .mapa-resumen b{color:var(--ink);font-size:.9rem;display:block}
+  .px{padding:12px 14px}
+  .resumen-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
+  .chip{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:9px 11px;flex:1;min-width:90px;box-shadow:var(--shadow)}
+  .chip .num{font-size:1.28rem;font-weight:800;color:var(--agua);line-height:1.1}
+  .chip .lbl{font-size:.62rem;color:var(--muted);text-transform:uppercase;margin-top:2px;letter-spacing:.02em}
+  .grid{display:grid;grid-template-columns:1fr;gap:11px;margin-bottom:13px}
+  @media(min-width:680px){.grid{grid-template-columns:repeat(2,1fr)}}
+  .tarjeta{background:var(--card);border:1px solid var(--line);border-radius:13px;
+    padding:12px 13px;box-shadow:var(--shadow)}
+  .tarjeta h3{font-size:.83rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .chart-box{position:relative;height:175px}
+  .seccion-titulo{font-size:.92rem;font-weight:700;margin:4px 0 9px;display:flex;align-items:center;justify-content:space-between}
+  .badge{font-size:.66rem;background:var(--agua-l);color:var(--agua-d);padding:2px 8px;border-radius:20px;font-weight:700}
+  .lista-com{display:flex;flex-direction:column;gap:6px}
+  .com-item{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;display:flex;align-items:center;gap:10px}
+  .com-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex:0 0 auto}
+  .com-icon.disp{background:#e8f2dd;color:var(--verde)}
+  .com-icon.aman{background:#fbe8d5;color:var(--tierra)}
+  .com-info{flex:1;min-width:0}
+  .com-nombre{font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .com-meta{font-size:.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .com-pob{text-align:right;flex:0 0 auto}
+  .com-pob .v{font-weight:800;color:var(--agua);font-size:.88rem}
+  .com-pob .l{font-size:.62rem;color:var(--muted)}
+  .com-arrow{color:var(--line);font-size:1.1rem}
+  .ver-mas{text-align:center;padding:10px;background:var(--card);border:1px dashed var(--line);
+    border-radius:9px;color:var(--agua);font-weight:700;font-size:.8rem;margin-top:3px}
+  .vacio{text-align:center;padding:40px 20px;color:var(--muted);font-size:.85rem}
+  .cargando{text-align:center;padding:60px 20px;color:var(--muted)}
+  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--agua);border-radius:50%;animation:girar .8s linear infinite;margin:0 auto 12px}
+  @keyframes girar{to{transform:rotate(360deg)}}
+  .barra-prog{height:5px;background:var(--line);border-radius:3px;overflow:hidden;max-width:220px;margin:9px auto}
+  .barra-prog i{display:block;height:100%;background:var(--agua);width:0;transition:width .2s}
+  .modal-fondo{position:fixed;inset:0;background:rgba(19,32,28,.55);z-index:900;display:none;flex-direction:column;justify-content:flex-end}
+  .modal-fondo.activo{display:flex}
+  .modal{background:var(--paper);border-radius:18px 18px 0 0;max-height:92vh;width:100%;
+    display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(19,32,28,.3);animation:subir .25s ease-out}
+  @keyframes subir{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-handle{width:38px;height:4px;background:var(--line);border-radius:3px;margin:8px auto 0;flex:0 0 auto}
+  .modal-head{padding:10px 16px 12px;position:relative;flex:0 0 auto;border-bottom:1px solid var(--line)}
+  .modal-head h2{font-size:1.08rem;font-weight:800;padding-right:30px;line-height:1.2}
+  .modal-head .m-meta{font-size:.74rem;color:var(--muted);margin-top:2px}
+  .modal-head .m-badges{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .m-badge{font-size:.64rem;font-weight:700;padding:3px 8px;border-radius:20px}
+  .m-badge.tipo-d{background:#e8f2dd;color:var(--verde)}
+  .m-badge.tipo-a{background:#fbe8d5;color:var(--tierra)}
+  .m-badge.consol{background:#fdeed0;color:var(--sol)}
+  .modal-close{position:absolute;top:10px;right:14px;width:28px;height:28px;border-radius:50%;
+    background:var(--line);border:none;color:var(--ink);font-size:1.1rem;display:flex;align-items:center;justify-content:center}
+  .modal-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px}
+  .modal-sec{margin-bottom:17px}
+  .modal-sec h4{font-size:.76rem;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+    color:var(--agua-d);margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid var(--agua-l);
+    display:flex;align-items:center;gap:6px}
+  .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+  @media(min-width:420px){.stat-grid{grid-template-columns:repeat(3,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+  .stat .sv{font-size:1.05rem;font-weight:800;color:var(--ink)}
+  .stat .sl{font-size:.62rem;color:var(--muted);margin-top:1px;line-height:1.2}
+  .stat .sp{font-size:.6rem;color:var(--verde);font-weight:700;margin-top:1px}
+  .modal-chart{height:170px;position:relative;margin-top:8px}
+  .modal-chart.peq{height:140px}
+  .tabla-det{width:100%;border-collapse:collapse;font-size:.76rem;margin-top:6px}
+  .tabla-det tr{border-bottom:1px solid var(--line)}
+  .tabla-det tr:last-child{border-bottom:none}
+  .tabla-det td{padding:6px 4px}
+  .tabla-det td:first-child{color:var(--muted)}
+  .tabla-det td:last-child{text-align:right;font-weight:700;color:var(--ink)}
+  .barra-mini{display:flex;align-items:center;gap:7px;padding:5px 0}
+  .barra-mini .et{font-size:.72rem;color:var(--muted);width:108px;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .barra-mini .pista{flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden}
+  .barra-mini .pista i{display:block;height:100%;border-radius:4px}
+  .barra-mini .vv{font-size:.72rem;font-weight:700;width:38px;text-align:right;flex:0 0 auto}
+  .modal-foot{padding:11px 16px calc(11px + var(--safe-b));border-top:1px solid var(--line);
+    display:flex;gap:8px;background:var(--card);flex:0 0 auto}
+  .btn-pdf,.btn-share{flex:1;padding:12px;border:none;border-radius:11px;font-size:.84rem;font-weight:800;
+    display:flex;align-items:center;justify-content:center;gap:6px}
+  .btn-pdf{background:var(--tierra);color:#fff}
+  .btn-share{background:var(--verde);color:#fff}
+  .btn-pdf:disabled{opacity:.6}
+  .leaflet-popup-content{font-size:.8rem;line-height:1.4;margin:9px 11px}
+  .popup-nombre{font-weight:800;font-size:.86rem;margin-bottom:2px}
+  .popup-meta{color:var(--muted);font-size:.72rem;margin-bottom:6px}
+  .popup-btn{background:var(--agua);color:#fff;border:none;border-radius:7px;padding:6px 11px;
+    font-size:.75rem;font-weight:700;width:100%;margin-top:2px}
+  .marker-cluster-d{background-color:rgba(92,138,58,.5)}
+  .marker-cluster-d div{background-color:rgba(92,138,58,.75);color:#fff}
+
+  /* ───── VISTA PREVIA PDF ───── */
+  .previa-fondo{position:fixed;inset:0;background:rgba(19,32,28,.7);z-index:950;display:none;
+    align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .previa-fondo.activo{display:flex}
+  .previa-card{background:#fff;border-radius:14px;max-width:720px;width:100%;margin:auto;
+    box-shadow:0 12px 50px rgba(0,0,0,.35);overflow:hidden}
+  .previa-head{background:var(--ink);color:#fff;padding:13px 16px;display:flex;align-items:center;justify-content:space-between}
+  .previa-head h3{font-size:.92rem;font-weight:700}
+  .previa-close{background:rgba(255,255,255,.18);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:1.05rem}
+  .previa-body-wrap{max-height:72vh;overflow-y:auto;background:#e9e7da;padding:14px}
+  .previa-foot{padding:12px 16px;display:flex;gap:8px;border-top:1px solid var(--line);background:var(--card)}
+  .previa-foot button{flex:1;padding:12px;border:none;border-radius:11px;font-weight:800;font-size:.85rem}
+  .btn-cancelar-pv{background:var(--line);color:var(--ink)}
+  .btn-generar-pv{background:var(--tierra);color:#fff}
+
+  /* Documento de la ficha (estilo papel A4) */
+  .previa-doc{background:#fff;padding:22px 24px;font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;
+    box-shadow:0 1px 8px rgba(0,0,0,.15);max-width:640px;margin:0 auto}
+  .pv-encabezado{display:flex;gap:12px;align-items:flex-start;border-bottom:3px solid var(--agua);padding-bottom:12px;margin-bottom:14px}
+  .pv-logo{font-size:1.8rem;flex:0 0 auto}
+  .pv-eyebrow{font-family:-apple-system,sans-serif;font-size:.62rem;font-weight:800;letter-spacing:.06em;
+    color:var(--agua-d);text-transform:uppercase}
+  .pv-tituloBox h1{font-size:1.45rem;margin:3px 0 2px;line-height:1.15}
+  .pv-ubicacion{font-family:-apple-system,sans-serif;font-size:.8rem;color:#555}
+  .pv-meta-bar{display:flex;gap:18px;flex-wrap:wrap;font-family:-apple-system,sans-serif;font-size:.72rem;
+    color:#555;margin-bottom:16px;background:#f6f4ee;padding:8px 12px;border-radius:7px}
+  .pv-meta-bar span{display:block;text-transform:uppercase;font-size:.6rem;letter-spacing:.03em;color:#888}
+  .pv-meta-bar b{font-family:Georgia,serif;font-size:.84rem;color:#1a1a1a}
+  .pv-seccion{margin-bottom:14px}
+  .pv-seccion h2{font-family:-apple-system,sans-serif;font-size:.84rem;font-weight:800;color:var(--agua-d);
+    border-bottom:1.5px solid var(--agua-l);padding-bottom:4px;margin-bottom:6px}
+  .pv-tabla{width:100%;border-collapse:collapse;font-size:.82rem}
+  .pv-tabla th{font-family:-apple-system,sans-serif;font-size:.62rem;text-transform:uppercase;letter-spacing:.03em;
+    color:#888;text-align:left;padding:4px 6px;border-bottom:1px solid #ccc}
+  .pv-tabla th:last-child{text-align:right}
+  .pv-tabla td{padding:5px 6px;border-bottom:1px solid #eee}
+  .pv-tabla td:last-child{text-align:right;font-weight:700}
+  .pv-tabla tr:nth-child(even) td{background:#faf9f5}
+  .pv-pie{text-align:center;font-family:-apple-system,sans-serif;font-size:.65rem;color:#999;margin-top:18px;
+    padding-top:10px;border-top:1px solid #ddd}
+
+  /* ───── PROGRAMAS ───── */
+  .prog-lista-grid{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+  .prog-card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px 14px;
+    display:flex;align-items:center;gap:11px}
+  .prog-card-ic{width:38px;height:38px;border-radius:10px;background:var(--agua-l);color:var(--agua-d);
+    display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex:0 0 auto}
+  .prog-card-info{flex:1;min-width:0}
+  .prog-card-nombre{font-weight:700;font-size:.88rem}
+  .prog-card-meta{font-size:.72rem;color:var(--muted);margin-top:1px}
+  .prog-card-del{background:none;border:none;color:var(--rojo);font-size:1.2rem;padding:4px 8px}
+  .btn-nuevo-prog{width:100%;padding:13px;background:var(--agua);color:#fff;border:none;border-radius:11px;
+    font-weight:800;font-size:.88rem;margin-bottom:16px}
+
+  /* Editor de programa */
+  .prog-editor-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .prog-back{background:var(--line);border:none;width:32px;height:32px;border-radius:9px;font-size:1.1rem;flex:0 0 auto}
+  .prog-nombre-input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;
+    font-size:1rem;font-weight:700;background:#fff}
+
+  .prog-buscador{position:relative;margin-bottom:10px}
+  .prog-buscador input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:.85rem;background:#fff}
+  .prog-resultados{background:#fff;border:1px solid var(--line);border-radius:10px;margin-top:5px;
+    max-height:220px;overflow-y:auto;box-shadow:var(--shadow)}
+  .prog-resultado-item{padding:9px 12px;border-bottom:1px solid var(--line);font-size:.82rem;cursor:pointer}
+  .prog-resultado-item:last-child{border-bottom:none}
+  .prog-resultado-item b{display:block;font-size:.85rem}
+  .prog-resultado-item span{color:var(--muted);font-size:.72rem}
+
+  .prog-mun-lista{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  .prog-mun-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
+  .prog-mun-card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .prog-mun-card-nombre{flex:1;font-weight:700;font-size:.9rem}
+  .prog-mun-quitar{background:none;border:none;color:var(--rojo);font-size:1.05rem}
+  .prog-comentario{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+    font-size:.82rem;font-family:inherit;resize:vertical;min-height:54px;margin-bottom:9px}
+  .prog-fotos-grid{display:flex;gap:7px;flex-wrap:wrap}
+  .prog-foto-thumb{width:62px;height:62px;border-radius:8px;object-fit:cover;border:1px solid var(--line)}
+  .prog-foto-add{width:62px;height:62px;border-radius:8px;border:1.5px dashed var(--line);background:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:1.3rem;color:var(--muted);flex:0 0 auto}
+  .prog-foto-wrap{position:relative}
+  .prog-foto-del{position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;
+    background:var(--rojo);color:#fff;border:none;font-size:.7rem;display:flex;align-items:center;justify-content:center}
+
+  .prog-vacio{text-align:center;padding:50px 20px;color:var(--muted)}
+  .prog-vacio .ic{font-size:2.4rem;margin-bottom:8px}
+
+  .btn-export-prog{width:100%;padding:12px;background:var(--tierra);color:#fff;border:none;border-radius:11px;
+    font-weight:800;font-size:.85rem;margin-top:16px}
+
+  /* ───── PROGRAMAS v2 ───── */
+  .prog-step-bar{display:flex;align-items:center;gap:5px;margin-bottom:14px;font-size:.66rem;color:var(--muted)}
+  .prog-step{padding:4px 9px;border-radius:20px;background:var(--line);font-weight:700}
+  .prog-step.activo{background:var(--agua);color:#fff}
+  .prog-step.hecho{background:var(--agua-l);color:var(--agua-d)}
+  .prog-step-sep{color:var(--line)}
+
+  .prog-filtros-box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:13px}
+  .prog-filtros-box h4{font-size:.78rem;font-weight:800;margin-bottom:10px;color:var(--agua-d);
+    text-transform:uppercase;letter-spacing:.03em}
+  .prog-filtro-fila{margin-bottom:11px}
+  .prog-filtro-fila:last-child{margin-bottom:0}
+  .prog-filtro-label{font-size:.76rem;font-weight:700;margin-bottom:5px;display:flex;justify-content:space-between}
+  .prog-filtro-label .modo-sel{font-size:.64rem;font-weight:600;color:var(--agua);background:var(--agua-l);
+    padding:2px 7px;border-radius:10px;cursor:pointer}
+  .prog-rango-inputs{display:flex;align-items:center;gap:7px}
+  .prog-rango-inputs input{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:.8rem;width:0}
+  .prog-rango-inputs span{color:var(--muted);font-size:.74rem}
+  .prog-check-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.8rem}
+  .prog-check-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--agua)}
+  .prog-aplicar-filtros{width:100%;padding:10px;background:var(--agua);color:#fff;border:none;border-radius:9px;
+    font-weight:800;font-size:.82rem;margin-top:11px}
+
+  .prog-resumen-sel{display:flex;gap:8px;margin-bottom:12px}
+  .prog-resumen-sel .chip{flex:1}
+
+  .prog-com-card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px;
+    display:flex;align-items:flex-start;gap:10px;margin-bottom:7px}
+  .prog-com-card.seleccionada{border-color:var(--agua);background:#f1f9fa}
+  .prog-com-check{width:21px;height:21px;accent-color:var(--agua);flex:0 0 auto;margin-top:2px}
+  .prog-com-info{flex:1;min-width:0}
+  .prog-com-nombre{font-weight:700;font-size:.86rem}
+  .prog-com-meta{font-size:.7rem;color:var(--muted);margin-top:1px}
+  .prog-com-indicadores{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:.68rem;color:var(--muted)}
+  .prog-com-indicadores b{color:var(--ink)}
+
+  .prog-toolbar-sel{position:sticky;top:0;background:var(--paper);padding:8px 0;z-index:5;
+    display:flex;gap:7px;margin-bottom:9px}
+  .prog-toolbar-sel button{flex:1;padding:9px;border-radius:9px;font-size:.76rem;font-weight:700;border:1px solid var(--line)}
+  .btn-sel-todas{background:var(--agua);color:#fff;border:none}
+  .btn-sel-ninguna{background:var(--card);color:var(--ink)}
+
+  .prog-continuar-btn{width:100%;padding:13px;background:var(--verde);color:#fff;border:none;border-radius:11px;
+    font-weight:800;font-size:.88rem;margin-top:14px}
+
+  .prog-com-editor{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:10px}
+  .prog-com-editor-top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .prog-com-editor-nombre{flex:1;font-weight:700;font-size:.88rem}
+  .prog-com-editor-quitar{background:none;border:none;color:var(--rojo);font-size:1.05rem}
+
+  /* ───── ETAPA 2: sub-tabs mapa/lista ───── */
+  .prog-subtabs{display:flex;background:var(--line);border-radius:9px;padding:3px;margin-bottom:12px;gap:3px}
+  .prog-subtab{flex:1;text-align:center;padding:7px 0;border-radius:7px;font-size:.78rem;font-weight:700;
+    color:var(--muted);border:none;background:transparent}
+  .prog-subtab.activo{background:#fff;color:var(--agua-d);box-shadow:var(--shadow)}
+  .prog-sub-vista{display:none}
+  .prog-sub-vista.activa{display:block}
+  .prog-mapa-wrap{position:relative;height:340px;border-radius:13px;overflow:hidden;border:1px solid var(--line);margin-bottom:13px}
+  .prog-mapa-el{width:100%;height:100%}
+  .prog-mapa-resumen{position:absolute;top:8px;left:8px;right:8px;z-index:30;
+    background:rgba(255,253,250,.95);backdrop-filter:blur(6px);border-radius:9px;padding:7px 11px;
+    box-shadow:var(--shadow);display:flex;gap:12px;font-size:.7rem;color:var(--muted)}
+  .prog-mapa-resumen b{color:var(--ink);font-size:.84rem;display:block}
+  .popup-btn-marcar{background:var(--verde);color:#fff;border:none;border-radius:7px;padding:6px 11px;
+    font-size:.75rem;font-weight:700;width:100%;margin-top:4px}
+  .popup-btn-marcar.ya-marcada{background:var(--line);color:var(--muted)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>💧 Censo Comunidades</h1>
+  <div class="sub">Agua, saneamiento y servicios básicos · Bolivia</div>
+  <div class="tabs">
+    <button class="tab activo" id="tabMapa" onclick="cambiarVista('mapa')">🗺️ Mapa</button>
+    <button class="tab" id="tabLista" onclick="cambiarVista('lista')">📋 Datos</button>
+    <button class="tab" id="tabProg" onclick="cambiarVista('programas')">📊 Programas</button>
+  </div>
+</header>
+
+<div class="filtros">
+  <div class="campo"><label>Depto.</label><select id="fDep"><option value="">Todos</option></select></div>
+  <div class="campo"><label>Provincia</label><select id="fProv"><option value="">Todas</option></select></div>
+  <div class="campo"><label>Municipio</label><select id="fMun"><option value="">Todos</option></select></div>
+  <div class="campo buscar"><label>Buscar</label><input type="text" id="fBuscar" placeholder="Comunidad…"></div>
+  <button class="btn-limpiar" onclick="limpiar()">✕</button>
+</div>
+
+<main>
+  <div id="vMapa" class="activa">
+    <div class="mapa-resumen" id="mapaResumen">
+      <div><b id="mrTotal">—</b>comunidades</div>
+      <div><b id="mrPob">—</b>habitantes</div>
+    </div>
+    <div id="mapaEl"></div>
+  </div>
+
+  <div id="vLista" class="vista">
+    <div id="contenido">
+      <div class="cargando">
+        <div class="spinner"></div>
+        <div>Cargando datos del censo…</div>
+        <div class="barra-prog"><i id="prog"></i></div>
+        <div style="font-size:.72rem;margin-top:5px" id="progTxt">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="vProgramas" class="vista">
+    <div class="px" id="progRaiz">
+      <!-- contenido inyectado por renderProgramas() -->
+    </div>
+  </div>
+</main>
+
+<div class="modal-fondo" id="modal">
+  <div class="modal" id="modalCard">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <button class="modal-close" onclick="cerrarModal()">×</button>
+      <h2 id="mTitulo">—</h2>
+      <div class="m-meta" id="mMeta">—</div>
+      <div class="m-badges" id="mBadges"></div>
+    </div>
+    <div class="modal-body" id="mBody"></div>
+    <div class="modal-foot">
+      <button class="btn-pdf" id="btnPdf" onclick="abrirPreviaPDF()">📄 Generar ficha PDF</button>
+      <button class="btn-share" id="btnNotaPrograma" style="display:none" onclick="abrirPanelNota()">✏️ Comentario y fotos</button>
+    </div>
+  </div>
+</div>
+<div class="modal-fondo" id="notaFondo" style="z-index:920">
+  <div class="modal" id="notaCard" style="max-height:80vh">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <button class="modal-close" onclick="cerrarPanelNota()">×</button>
+      <h2>✏️ Comentario y fotos</h2>
+      <div class="m-meta" id="notaMeta">—</div>
+    </div>
+    <div class="modal-body" id="notaBody"></div>
+    <div class="modal-foot">
+      <button class="btn-pdf" style="background:var(--agua)" onclick="cerrarPanelNota()">Listo</button>
+    </div>
+  </div>
+</div>
+<div class="previa-fondo" id="previaFondo">
+  <div class="previa-card">
+    <div class="previa-head">
+      <h3>📄 Vista previa de la ficha</h3>
+      <button class="previa-close" onclick="cerrarPrevia()">×</button>
+    </div>
+    <div class="previa-body-wrap"><div id="previaBody"></div></div>
+    <div class="previa-foot">
+      <button class="btn-cancelar-pv" onclick="cerrarPrevia()">Cancelar</button>
+      <button class="btn-generar-pv" id="btnGenerarReal" onclick="generarPDFReal()">⬇️ Descargar PDF</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let DATOS=[], JER={}, filtrados=[], mostrados=0, comActual=null;
+const JER_DATA = {"BENI":{"CERCADO":["San Javier","Trinidad"],"GENERAL JOSÉ BALLIVIÁN":["Puerto Menor de Rurrenabaque","Reyes","San Borja","Santa Rosa"],"ITÉNEZ":["Baures","Huacaraje","Magdalena"],"MAMORÉ":["Puerto Siles","San Joaquín","San Ramón"],"MARBÁN":["Loreto","San Andrés"],"MOXOS":["San Ignacio"],"TERRITORIO INDÍGENA MULTIÉTNICO":["TIOC-Territorio Indígena Multiétnico"],"VACA DIEZ":["Guayaramerín","Riberalta"],"YACUMA":["Exaltación","Santa Ana"]},"CHUQUISACA":{"AZURDUY":["Azurduy","Tarvita"],"BELISARIO BOETO":["Villa Serrano"],"HERNANDO SILES":["Huacareta","Monteagudo"],"LUIS CALVO":["Huacaya (Autonomía Guaraní Chaqueño de Huacaya)","Macharetí","Villa Vaca Guzmán"],"NOR CINTI":["Camargo","Incahuasi","San Lucas","Villa Charcas"],"OROPEZA":["Poroma","Sucre","Yotala"],"SUD CINTI":["Culpina","Las Carreras","Villa Abecia"],"TOMINA":["Alcalá","El Villar","Padilla","Sopachuy","Tomina"],"YAMPARÁEZ":["Tarabuco","Yamparáez"],"ZUDÁÑEZ":["Icla","Mojocoya","Presto","Zudáñez"]},"COCHABAMBA":{"ARANI":["Arani","Vacas"],"ARQUE":["Arque","Tacopaya"],"AYOPAYA":["Ayopaya","Cocapata","Morochata"],"BOLÍVAR":["Bolívar"],"CAMPERO":["Aiquile","Omereque","Pasorapa"],"CAPINOTA":["Capinota","Santiváñez","Sicaya"],"CARRASCO":["Chimoré","Entre Ríos","Pocona","Pojo","Puerto Villarroel","Totora"],"CERCADO":["Cochabamba"],"CHAPARE":["Colomi","Sacaba","Villa Tunari"],"ESTEBAN ARZE":["Anzaldo","Arbieto","Sacabamba","Tarata"],"GERMÁN JORDÁN":["Cliza","Toco","Tolata"],"MIZQUE":["Alalay","Mizque","TIOC-Raqaypampa","Vila Vila"],"PUNATA":["Punata","San Benito","Tacachi","Villa Gualberto Villarroel","Villa Rivero"],"QUILLACOLLO":["Colcapirhua","Quillacollo","Sipesipe","Tiquipaya","Vinto"],"TAPACARÍ":["Tapacarí"],"TIRAQUE":["Shinahota","Tiraque"]},"LA PAZ":{"ABEL ITURRALDE":["Ixiamas","San Buenaventura"],"AROMA":["Ayo Ayo","Calamarca","Collana","Colquencha","Patacamaya","Sicasica","Umala"],"BAUTISTA SAAVEDRA":["Charazani","Curva"],"CAMACHO":["Escoma","Humanata","Mocomoco","Puerto Acosta","Puerto Mayor de Carabuco"],"CARANAVI":["Alto Beni","Caranavi"],"FRANZ TAMAYO":["Apolo","Pelechuco"],"GENERAL JOSÉ MANUEL PANDO":["Catacora","Santiago de Machaca"],"GUALBERTO VILLARROEL":["Chacarilla","Papel Pampa","San Pedro de Curahuara"],"INGAVI":["Desaguadero","Jesús de Machaka","La (Marka) San Andrés de Machaca","Puerto Mayor de Guaqui","Taraco","Tiahuanacu","Viacha"],"INQUISIVI":["Cajuata","Colquiri","Ichoca","Inquisivi","Quime","Villa Libertad Licoma"],"LARECAJA":["Combaya","Guanay","Mapiri","Quiabaya","Sorata","Tacacoma","Teoponte","Tipuani"],"LOAYZA":["Cairoma","Luribay","Malla","Sapahaqui","Yaco"],"LOS ANDES":["Batallas","Laja","Pucarani","Puerto Pérez"],"MANCO KAPAC":["Copacabana","San Pedro de Tiquina","Tito Yupanqui"],"MURILLO":["Achocalla","El Alto","Mecapaca","Nuestra Señora de La Paz","Palca"],"MUÑECAS":["Aucapata","Ayata","Chuma"],"NOR YUNGAS":["Coripata","Coroico"],"OMASUYOS":["Achacachi","Chua Cocani","Huarina","Huatajata","Santiago de Huata","Villa Ancoraimes"],"PACAJES":["Calacoto","Caquiaviri","Charaña","Comanche","Corocoro","Nazacara de Pacajes","Santiago de Callapa","Waldo Ballivián"],"SUR YUNGAS":["Chulumani","Irupana","La Asunta","Palos Blancos","Yanacachi"]},"ORURO":{"ABAROA":["Challapata","Santuario de Quillacas"],"CARANGAS":["Choquecota","Corque"],"CERCADO":["Caracollo","El Choro","Oruro","Paria"],"LADISLAO CABRERA":["Pampa Aullagas","Salinas de Garci Mendoza (Autonomía Indígena Originario Campesina de Salinas)"],"LITORAL":["Cruz de Machacamarca","Escara","Esmeralda","Huachacalla","Yunguyo del Litoral"],"MEJILLONES":["Carangas","La Rivera","Todos Santos"],"NOR CARANGAS":["Santiago de Huayllamarca"],"PANTALEÓN DALENCE":["Huanuni","Machacamarca"],"POOPÓ":["Antequera","Pazña","Poopó"],"SABAYA":["Coipasa","Sabaya","Uru Chipaya (Nación Originaria Uru Chipaya)"],"SAJAMA":["Curahuara de Carangas","Turco"],"SAN PEDRO DE TOTORA":["Totora"],"SAUCARÍ":["Toledo"],"SEBASTIÁN PAGADOR":["Santiago de Huari"],"SUR CARANGAS":["Andamarca","Belén de Andamarca"],"TOMÁS BARRÓN":["Eucaliptus"]},"PANDO":{"ABUNÁ":["Ingavi","Santa Rosa"],"FEDERICO ROMÁN":["Nueva Esperanza","Santos Mercado","Villa Nueva"],"MADRE DE DIOS":["Puerto Gonzalo Moreno","San Lorenzo","Sena"],"MANURIPI":["Filadelfia","Puerto Rico","San Pedro"],"NICOLÁS SUÁREZ":["Bella Flor","Bolpebra","Cobija","Porvenir"]},"POTOSÍ":{"ALONSO DE IBÁÑEZ":["Caripuyo","Sacaca"],"ANTONIO QUIJARRO":["Porco","TIOC-Jatun Ayllu Yura","Tomave","Uyuni"],"CHARCAS":["San Pedro","Toro Toro"],"CHAYANTA":["Colquechaca","Ocurí","Pocoata","Ravelo","San Pedro de Macha"],"CORNELIO SAAVEDRA":["Betanzos","Chaquí","Tacobamba"],"DANIEL CAMPOS":["Llica","Tahua"],"ENRIQUE BALDIVIESO":["San Agustín"],"GENERAL BERNARDINO BILBAO":["Acasio","Arampampa"],"JOSÉ MARÍA LINARES":["Caiza \"D\"","Ckochas","Puna"],"MODESTO OMISTE":["Villazón"],"NOR CHICHAS":["Cotagaita","Vitichi"],"NOR LÍPEZ":["Colcha \"K\"","San Pedro de Quemes"],"RAFAEL BUSTILLO":["Chayanta","Chuquihuta Ayllu Jucumani","Llallagua","Uncía"],"SUR CHICHAS":["Atocha","Tupiza"],"SUR LÍPEZ":["Mojinete","San Antonio de Esmoruco","San Pablo"],"TOMÁS FRÍAS":["Potosí","Tinguipaya","Urmiri","Yocalla"]},"SANTA CRUZ":{"ANDRÉS IBÁÑEZ":["Cotoca","El Torno","La Guardia","Porongo","Santa Cruz de la Sierra"],"CHIQUITOS":["Pailón","Roboré","San José"],"CORDILLERA":["Boyuibe","Cabezas","Camiri","Charagua (Autonomía Guaraní Charagua Iyambae)","Cuevo","Gutiérrez (Autonomía Indígena Kereimba Iyaambae)","Lagunillas"],"FLORIDA":["Mairana","Pampagrande","Quirusillas","Samaipata"],"GERMÁN BUSCH":["El Carmen Rivero Tórrez","Puerto Quijarro","Puerto Suárez"],"GUARAYOS":["Ascención de Guarayos","El Puente","Urubichá"],"ICHILO":["Buena Vista","San Carlos","San Juan","Yapacaní"],"MANUEL MARÍA CABALLERO":["Comarapa","Saipina"],"OBISPO SANTISTEBAN":["Fernández Alonso","General Saavedra","Mineros","Montero","San Pedro"],"SARA":["Colpa Bélgica","Portachuelo","Santa Rosa"],"VALLE GRANDE":["Moromoro","Postrervalle","Pucará","Trigal","Vallegrande"],"VELASCO":["San Ignacio","San Miguel","San Rafael"],"WARNES":["Okinawa Uno","Warnes"],"ÁNGEL SANDOVAL":["San Matías"],"ÑUFLO DE CHÁVEZ":["Concepción","Cuatro Cañadas","San Antonio de Lomerio","San Javier","San Julián","San Ramón"]},"Sin dato":{"Sin dato":["Achacachi","Achocalla","Aiquile","Alalay","Anzaldo","Arampampa","Arani","Atocha","Ayata","Ayo Ayo","Belén de Andamarca","Bermejo","Betanzos","Buena Vista","Cabezas","Cairoma","Caiza \"D\"","Cajuata","Calamarca","Caquiaviri","Caracollo","Caripuyo","Chacarilla","Charaña","Chulumani","Chuquihuta Ayllu Jucumani","Ckochas","Cliza","Cobija","Cocapata","Colcha \"K\"","Colpa Bélgica","Colquiri","Comarapa","Combaya","Concepción","Coripata","Corocoro","Corque","Cruz de Machacamarca","Cuevo","Culpina","Curahuara de Carangas","Curva","Desaguadero","El Choro","El Puente","El Torno","Entre Ríos","Esmeralda","Eucaliptus","General Saavedra","Guanay","Huacaya (Autonomía Guaraní Chaqueño de Huacaya)","Ichoca","Icla","Incahuasi","Inquisivi","La Asunta","La Guardia","La Rivera","Lagunillas","Las Carreras","Loreto","Luribay","Machacamarca","Macharetí","Magdalena","Mairana","Malla","Mapiri","Mecapaca","Mineros","Mizque","Mojocoya","Morochata","Moromoro","Nueva Esperanza","Ocurí","Oruro","Padcaya","Padilla","Pailón","Palca","Palos Blancos","Pampa Aullagas","Pampagrande","Papel Pampa","Paria","Patacamaya","Pelechuco","Pocoata","Pocona","Pojo","Poopó","Portachuelo","Potosí","Pucarani","Puerto Acosta","Puerto Gonzalo Moreno","Puerto Mayor de Carabuco","Puerto Mayor de Guaqui","Puerto Pérez","Puerto Quijarro","Puerto Siles","Puna","Quiabaya","Quime","Quirusillas","Reyes","Riberalta","Sacaba","Saipina","San Antonio de Lomerio","San Benito","San Buenaventura","San Carlos","San Joaquín","San Juan","San Lorenzo","San Lucas","San Matías","San Miguel","San Pedro","San Pedro de Curahuara","San Pedro de Macha","San Pedro de Quemes","Santa Ana","Santa Rosa","Santiago de Callapa","Santiváñez","Santuario de Quillacas","Sapahaqui","Shinahota","Sicaya","Sipesipe","Sorata","TIOC-Jatun Ayllu Yura","TIOC-Raqaypampa","TIOC-Territorio Indígena Multiétnico","Tacachi","Tacopaya","Tahua","Tarata","Teoponte","Tinguipaya","Tipuani","Tiquipaya","Toco","Tolata","Toledo","Tomave","Totora","Trigal","Trinidad","Umala","Uriondo","Urmiri","Urubichá","Uyuni","Villa Ancoraimes","Villa Nueva","Villa Rivero","Villa Serrano","Villa Tunari","Villazón","Vinto","Vitichi","Yaco","Yamparáez","Yanacachi","Yapacaní","Yunchará","Yunguyo del Litoral"]},"TARIJA":{"ARCE":["Bermejo","Padcaya"],"AVILEZ":["Uriondo","Yunchará"],"CERCADO":["Tarija"],"GRAN CHACO":["Caraparí","Villa Montes","Yacuiba"],"MÉNDEZ":["El Puente","San Lorenzo"],"O'CONNOR":["Entre Ríos"]}};
+const PASO = 40;
+let charts = {};
+let mapa, capaClusters;
+let datosListos = false, mapaListo = false;
+
+function cambiarVista(v){
+  document.getElementById('tabMapa').classList.toggle('activo', v==='mapa');
+  document.getElementById('tabLista').classList.toggle('activo', v==='lista');
+  document.getElementById('tabProg').classList.toggle('activo', v==='programas');
+  document.getElementById('vMapa').classList.toggle('activa', v==='mapa');
+  document.getElementById('vLista').classList.toggle('activa', v==='lista');
+  document.getElementById('vProgramas').classList.toggle('activa', v==='programas');
+  if(v==='mapa' && mapa) setTimeout(function(){mapa.invalidateSize();},80);
+  if(v==='programas') renderProgramas();
+}
+
+function initMapa(){
+  mapa = L.map('mapaEl',{zoomControl:true,attributionControl:false}).setView([-16.5,-64.5],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(mapa);
+  capaClusters = L.markerClusterGroup({
+    chunkedLoading:true, maxClusterRadius:50,
+    iconCreateFunction:function(cluster){
+      const n = cluster.getChildCount();
+      let px = n<50?34:n<300?42:50;
+      return L.divIcon({
+        html:'<div style="width:'+px+'px;height:'+px+'px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:'+(px>40?'.85rem':'.72rem')+'">'+n+'</div>',
+        className:'marker-cluster marker-cluster-d', iconSize:L.point(px,px)
+      });
+    }
+  });
+  mapa.addLayer(capaClusters);
+  mapaListo = true;
+  if(datosListos) pintarMapa();
+}
+
+function pintarMapa(){
+  if(!mapaListo) return;
+  capaClusters.clearLayers();
+  const fuente = filtrados.length ? filtrados : DATOS;
+  const marks = [];
+  for(const r of fuente){
+    if(!r.lat || !r.lon) continue;
+    const color = r.tipo==='Dispersa' ? '#5c8a3a' : '#1f7a8c';
+    const m = L.circleMarker([r.lat,r.lon],{radius:6,color:'#fff',weight:1.5,fillColor:color,fillOpacity:.9});
+    const idx = DATOS.indexOf(r);
+    m.bindPopup('<div class="popup-nombre">'+r.com+'</div><div class="popup-meta">'+r.mun+' · '+(r.pT||0).toLocaleString()+' hab.</div><button class="popup-btn" onclick="abrirModal('+idx+')">Ver ficha completa</button>');
+    marks.push(m);
+  }
+  capaClusters.addLayers(marks);
+  document.getElementById('mrTotal').textContent = fuente.length.toLocaleString();
+  document.getElementById('mrPob').textContent = suma(fuente,'pT').toLocaleString();
+  if(filtrados.length && filtrados.length < DATOS.length && marks.length){
+    try{ mapa.fitBounds(L.featureGroup(marks).getBounds(),{padding:[30,30],maxZoom:13}); }catch(e){}
+  } else if(!filtrados.length){
+    mapa.setView([-16.5,-64.5],6);
+  }
+}
+
+async function cargar(){
+  initMapa();
+  try{
+    JER = JER_DATA;
+    const datR = await fetch('datos_comunidades.json');
+    const reader = datR.body.getReader();
+    const total = +datR.headers.get('Content-Length') || 12000000;
+    let recibido=0, chunks=[];
+    while(true){
+      const res = await reader.read();
+      if(res.done) break;
+      chunks.push(res.value); recibido+=res.value.length;
+      const pct = Math.min(99, Math.round(recibido/total*100));
+      const pe=document.getElementById('prog'), pt=document.getElementById('progTxt');
+      if(pe){ pe.style.width=pct+'%'; pt.textContent=pct+'%'; }
+    }
+    const txt = await new Blob(chunks).text();
+    DATOS = JSON.parse(txt);
+    datosListos = true;
+    poblarDepartamentos();
+    filtrados = [];
+    render();
+    pintarMapa();
+  }catch(e){
+    document.getElementById('contenido').innerHTML =
+      '<div class="vacio">No se pudieron cargar los datos.<br><small>'+e.message+'</small><br><br>'+
+      'Verifica que <b>datos_comunidades.json</b> '+
+      'y que lo abras con un servidor local.</div>';
+  }
+}
+
+function poblarDepartamentos(){
+  const s = document.getElementById('fDep');
+  Object.keys(JER).sort().forEach(function(d){
+    if(d==='Sin dato') return;
+    s.innerHTML += '<option value="'+d+'">'+d+'</option>';
+  });
+}
+document.getElementById('fDep').addEventListener('change',function(e){
+  const dep=e.target.value, sP=document.getElementById('fProv'), sM=document.getElementById('fMun');
+  sP.innerHTML='<option value="">Todas</option>'; sM.innerHTML='<option value="">Todos</option>';
+  if(dep && JER[dep]) Object.keys(JER[dep]).sort().forEach(function(p){ sP.innerHTML+='<option value="'+p+'">'+p+'</option>'; });
+  aplicarFiltros();
+});
+document.getElementById('fProv').addEventListener('change',function(e){
+  const dep=document.getElementById('fDep').value, prov=e.target.value, sM=document.getElementById('fMun');
+  sM.innerHTML='<option value="">Todos</option>';
+  if(dep && prov && JER[dep] && JER[dep][prov]) JER[dep][prov].forEach(function(m){ sM.innerHTML+='<option value="'+m+'">'+m+'</option>'; });
+  aplicarFiltros();
+});
+document.getElementById('fMun').addEventListener('change',aplicarFiltros);
+let buscarTimer;
+document.getElementById('fBuscar').addEventListener('input',function(){
+  clearTimeout(buscarTimer); buscarTimer=setTimeout(aplicarFiltros,250);
+});
+function limpiar(){
+  document.getElementById('fDep').value='';
+  document.getElementById('fProv').innerHTML='<option value="">Todas</option>';
+  document.getElementById('fMun').innerHTML='<option value="">Todos</option>';
+  document.getElementById('fBuscar').value='';
+  aplicarFiltros();
+}
+
+function aplicarFiltros(){
+  if(!datosListos) return;
+  const dep=document.getElementById('fDep').value, prov=document.getElementById('fProv').value;
+  const mun=document.getElementById('fMun').value, q=document.getElementById('fBuscar').value.trim().toLowerCase();
+  const hayFiltro = dep||prov||mun||q;
+  filtrados = hayFiltro ? DATOS.filter(function(r){
+    if(dep && r.dep!==dep) return false;
+    if(prov && r.prov!==prov) return false;
+    if(mun && r.mun!==mun) return false;
+    if(q && !r.com.toLowerCase().includes(q)) return false;
+    return true;
+  }) : [];
+  mostrados = PASO;
+  render();
+  pintarMapa();
+}
+
+function suma(arr,campo){ let s=0; for(const r of arr){ if(typeof r[campo]==='number') s+=r[campo]; } return s; }
+
+function render(){
+  if(!datosListos) return;
+  const cont = document.getElementById('contenido');
+  const base = filtrados.length ? filtrados : DATOS;
+  if(base.length===0){ cont.innerHTML = '<div class="vacio">No hay comunidades con esos filtros.</div>'; return; }
+  const nPob=suma(base,'pT'), nViv=suma(base,'vT');
+  const nDisp=base.filter(function(r){return r.tipo==='Dispersa'}).length;
+  const nAman=base.filter(function(r){return r.tipo==='Amanzanada'}).length;
+
+  cont.innerHTML =
+  '<div class="px">'+
+  '<div class="resumen-bar">'+
+    '<div class="chip"><div class="num">'+base.length.toLocaleString()+'</div><div class="lbl">Comunidades</div></div>'+
+    '<div class="chip"><div class="num">'+nPob.toLocaleString()+'</div><div class="lbl">Población</div></div>'+
+    '<div class="chip"><div class="num">'+nViv.toLocaleString()+'</div><div class="lbl">Viviendas</div></div>'+
+    '<div class="chip"><div class="num">'+nDisp+'/'+nAman+'</div><div class="lbl">Disp/Aman</div></div>'+
+  '</div>'+
+  '<div class="grid">'+
+    '<div class="tarjeta"><h3>💧 Fuente de agua</h3><div class="chart-box"><canvas id="chAgua"></canvas></div></div>'+
+    '<div class="tarjeta"><h3>🚽 Saneamiento</h3><div class="chart-box"><canvas id="chSanea"></canvas></div></div>'+
+    '<div class="tarjeta"><h3>⚡ Electricidad</h3><div class="chart-box"><canvas id="chElec"></canvas></div></div>'+
+    '<div class="tarjeta"><h3>👥 Población por edad</h3><div class="chart-box"><canvas id="chEdad"></canvas></div></div>'+
+    '<div class="tarjeta"><h3>🎓 Educación</h3><div class="chart-box"><canvas id="chEduc"></canvas></div></div>'+
+    '<div class="tarjeta"><h3>🍳 Cocina</h3><div class="chart-box"><canvas id="chCocina"></canvas></div></div>'+
+  '</div>'+
+  '<button class="btn-export-prog" style="margin-bottom:14px" onclick="exportarEstadisticasFiltroPrincipal(this)">📊 Generar reporte estadístico de esta selección</button>'+
+  '<div class="seccion-titulo"><span>Comunidades</span><span class="badge">'+base.length.toLocaleString()+'</span></div>'+
+  '<div class="lista-com" id="listaCom"></div>'+
+  '</div>';
+  dibujarGraficos(base);
+  renderListaCom(base);
+}
+
+function renderListaCom(base){
+  const cont = document.getElementById('listaCom');
+  const slice = base.slice(0,mostrados);
+  let html = slice.map(function(r){
+    const cls=r.tipo==='Dispersa'?'disp':'aman', ic=r.tipo==='Dispersa'?'🌿':'🏘️';
+    const pob=typeof r.pT==='number'?r.pT.toLocaleString():'—';
+    return '<div class="com-item" onclick="abrirModal('+DATOS.indexOf(r)+')">'+
+      '<div class="com-icon '+cls+'">'+ic+'</div>'+
+      '<div class="com-info"><div class="com-nombre">'+r.com+'</div><div class="com-meta">'+r.mun+' · '+r.prov+'</div></div>'+
+      '<div class="com-pob"><div class="v">'+pob+'</div><div class="l">hab.</div></div>'+
+      '<div class="com-arrow">›</div></div>';
+  }).join('');
+  if(mostrados<base.length) html += '<div class="ver-mas" onclick="verMas()">Ver más ('+(base.length-mostrados).toLocaleString()+')</div>';
+  cont.innerHTML = html;
+}
+function verMas(){ mostrados+=PASO; renderListaCom(filtrados.length?filtrados:DATOS); }
+
+const PAL=['#1f7a8c','#5c8a3a','#b56b45','#dba017','#cfeaf0','#8b5a8c','#c44536','#707a73'];
+function destruirCharts(){ Object.values(charts).forEach(function(c){ if(c&&c.destroy) c.destroy(); }); charts={}; }
+function torta(id,labels,data,colores){
+  const el=document.getElementById(id); if(!el) return;
+  charts[id]=new Chart(el,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colores||PAL,borderWidth:2,borderColor:'#fffdfa'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5},padding:6}}}}});
+}
+function barrasV(id,labels,data,color){
+  const el=document.getElementById(id); if(!el) return;
+  charts[id]=new Chart(el,{type:'bar',data:{labels:labels,datasets:[{data:data,backgroundColor:color||'#1f7a8c',borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,ticks:{font:{size:9.5}}},x:{ticks:{font:{size:9.5}}}}}});
+}
+function dibujarGraficos(f){
+  destruirCharts();
+  const agua=[['Cañería','aCan'],['Pileta','aPil'],['Pozo','aPozo'],['Río','aRio'],['Manantial','aMan'],['Lluvia','aLlu']].map(function(x){return [x[0],suma(f,x[1])]}).filter(function(x){return x[1]>0});
+  if(agua.length) torta('chAgua',agua.map(function(x){return x[0]}),agua.map(function(x){return x[1]}));
+  const san=[['Alcantar.','snAlc'],['Cám. séptica','snCam'],['Pozo ciego','snPozo'],['No tiene','snNo']].map(function(x){return [x[0],suma(f,x[1])]}).filter(function(x){return x[1]>0});
+  if(san.length) torta('chSanea',san.map(function(x){return x[0]}),san.map(function(x){return x[1]}),['#5c8a3a','#cfeaf0','#dba017','#c44536']);
+  const elec=[['Serv. público','elPub'],['No tiene','elNo']].map(function(x){return [x[0],suma(f,x[1])]}).filter(function(x){return x[1]>0});
+  if(elec.length) torta('chElec',elec.map(function(x){return x[0]}),elec.map(function(x){return x[1]}),['#dba017','#c44536']);
+  const edad=[['0-19','p019'],['20-39','p2039'],['40-59','p4059'],['60+','p60']].map(function(x){return [x[0],suma(f,x[1])]});
+  barrasV('chEdad',edad.map(function(x){return x[0]}),edad.map(function(x){return x[1]}),'#1f7a8c');
+  const edu=[['Ninguno','eNin'],['Primaria','ePri'],['Secund.','eSec'],['Superior','eSup']].map(function(x){return [x[0],suma(f,x[1])]});
+  barrasV('chEduc',edu.map(function(x){return x[0]}),edu.map(function(x){return x[1]}),'#5c8a3a');
+  const coc=[['Gas','cGas'],['Leña','cLena']].map(function(x){return [x[0],suma(f,x[1])]}).filter(function(x){return x[1]>0});
+  if(coc.length) torta('chCocina',coc.map(function(x){return x[0]}),coc.map(function(x){return x[1]}),['#1f7a8c','#b56b45']);
+}
+
+function barraMini(label,val,max,color){
+  const pct = max>0 ? Math.round((val||0)/max*100) : 0;
+  return '<div class="barra-mini"><div class="et">'+label+'</div>'+
+    '<div class="pista"><i style="width:'+pct+'%;background:'+color+'"></i></div>'+
+    '<div class="vv">'+(val||0).toLocaleString()+'</div></div>';
+}
+
+function abrirModal(idx){
+  if(mapa) mapa.closePopup();
+  const r = DATOS[idx]; comActual = r;
+  document.getElementById('mTitulo').textContent = r.com;
+  document.getElementById('mMeta').textContent = r.mun+', '+r.prov+' · '+r.dep;
+  const tipoCls = r.tipo==='Dispersa'?'tipo-d':'tipo-a';
+  document.getElementById('mBadges').innerHTML =
+    '<span class="m-badge '+tipoCls+'">'+r.tipo+'</span>'+
+    (r.lat?'<span class="m-badge consol">📍 '+r.lat.toFixed(4)+', '+r.lon.toFixed(4)+'</span>':'');
+
+  const pT=r.pT||0, pH=r.pH||0, pM=r.pM||0;
+  const pctH=pT?Math.round(pH/pT*100):0, pctM=pT?Math.round(pM/pT*100):0;
+  const educTot=(r.eNin||0)+(r.ePri||0)+(r.eSec||0)+(r.eSup||0);
+  const aguaTot=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+  const sanTot=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+  const vivTot=r.vT||0;
+
+  let html =
+  '<div class="modal-sec"><h4>👥 Población</h4>'+
+    '<div class="stat-grid">'+
+      '<div class="stat"><div class="sv">'+pT.toLocaleString()+'</div><div class="sl">Total habitantes</div></div>'+
+      '<div class="stat"><div class="sv">'+pH.toLocaleString()+'</div><div class="sl">Hombres</div><div class="sp">'+pctH+'%</div></div>'+
+      '<div class="stat"><div class="sv">'+pM.toLocaleString()+'</div><div class="sl">Mujeres</div><div class="sp">'+pctM+'%</div></div>'+
+    '</div>'+
+    '<div class="modal-chart"><canvas id="mEdad"></canvas></div>'+
+  '</div>'+
+  '<div class="modal-sec"><h4>🏠 Vivienda</h4>'+
+    '<div class="stat-grid">'+
+      '<div class="stat"><div class="sv">'+vivTot.toLocaleString()+'</div><div class="sl">Total viviendas</div></div>'+
+      '<div class="stat"><div class="sv">'+(r.vOcup||0).toLocaleString()+'</div><div class="sl">Ocupadas</div></div>'+
+      '<div class="stat"><div class="sv">'+(r.vProp||0).toLocaleString()+'</div><div class="sl">Propias</div></div>'+
+    '</div>'+
+  '</div>'+
+  '<div class="modal-sec"><h4>💧 Fuente de agua</h4>'+
+    '<div class="modal-chart peq"><canvas id="mAgua"></canvas></div>'+
+    barraMini('Cañería de red',r.aCan,aguaTot,'#1f7a8c')+
+    barraMini('Pileta pública',r.aPil,aguaTot,'#cfeaf0')+
+    barraMini('Pozo c/bomba',r.aPozo,aguaTot,'#5c8a3a')+
+    barraMini('Río/acequia',r.aRio,aguaTot,'#c44536')+
+    barraMini('Manantial',r.aMan,aguaTot,'#dba017')+
+    barraMini('Lluvia',r.aLlu,aguaTot,'#8b5a8c')+
+  '</div>'+
+  '<div class="modal-sec"><h4>🚽 Saneamiento</h4>'+
+    '<div class="modal-chart peq"><canvas id="mSanea"></canvas></div>'+
+    barraMini('Alcantarillado',r.snAlc,sanTot,'#1f7a8c')+
+    barraMini('Cámara séptica',r.snCam,sanTot,'#5c8a3a')+
+    barraMini('Pozo ciego',r.snPozo,sanTot,'#dba017')+
+    barraMini('No tiene',r.snNo,sanTot,'#c44536')+
+  '</div>'+
+  '<div class="modal-sec"><h4>⚡ Electricidad</h4>'+
+    '<table class="tabla-det">'+
+      '<tr><td>Servicio público</td><td>'+(r.elPub||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Sin electricidad</td><td>'+(r.elNo||0).toLocaleString()+'</td></tr>'+
+    '</table>'+
+  '</div>'+
+  '<div class="modal-sec"><h4>🎓 Educación</h4>'+
+    '<div class="modal-chart peq"><canvas id="mEduc"></canvas></div>'+
+    barraMini('Sin instrucción',r.eNin,educTot,'#c44536')+
+    barraMini('Primaria',r.ePri,educTot,'#dba017')+
+    barraMini('Secundaria',r.eSec,educTot,'#1f7a8c')+
+    barraMini('Superior',r.eSup,educTot,'#5c8a3a')+
+  '</div>'+
+  '<div class="modal-sec"><h4>🏥 Salud</h4>'+
+    '<table class="tabla-det">'+
+      '<tr><td>Atención SUS</td><td>'+(r.sSUS||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Caja de salud</td><td>'+(r.sCaja||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Seguro privado</td><td>'+(r.sPriv||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Sin seguro</td><td>'+(r.sNin||0).toLocaleString()+'</td></tr>'+
+    '</table>'+
+  '</div>'+
+  '<div class="modal-sec"><h4>💼 Economía</h4>'+
+    '<table class="tabla-det">'+
+      '<tr><td>Agricultura/ganadería</td><td>'+(r.ecAgri||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Comercio</td><td>'+(r.ecCom||0).toLocaleString()+'</td></tr>'+
+    '</table>'+
+  '</div>'+
+  '<div class="modal-sec"><h4>🍳 Cocina y residuos</h4>'+
+    '<table class="tabla-det">'+
+      '<tr><td>Gas en garrafa</td><td>'+(r.cGas||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Leña</td><td>'+(r.cLena||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Basura: contenedor</td><td>'+(r.bCont||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Basura: la queman</td><td>'+(r.bQuem||0).toLocaleString()+'</td></tr>'+
+    '</table>'+
+  '</div>'+
+  '<div class="modal-sec"><h4>📱 Tecnología</h4>'+
+    '<table class="tabla-det">'+
+      '<tr><td>Teléfono celular</td><td>'+(r.tCel||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Internet</td><td>'+(r.tInt||0).toLocaleString()+'</td></tr>'+
+      '<tr><td>Televisión</td><td>'+(r.tTV||0).toLocaleString()+'</td></tr>'+
+    '</table>'+
+  '</div>';
+  document.getElementById('mBody').innerHTML = html;
+  document.getElementById('mBody').scrollTop = 0;
+  document.getElementById('modal').classList.add('activo');
+
+  // Mostrar boton de comentario/fotos solo si esta comunidad pertenece
+  // a un programa actualmente abierto y fue marcada en la seleccion
+  const btnNota = document.getElementById('btnNotaPrograma');
+  if(progActualId && programas[progActualId] && programas[progActualId].seleccion[comKey(r)]){
+    btnNota.style.display = 'flex';
+  } else {
+    btnNota.style.display = 'none';
+  }
+
+  setTimeout(function(){
+    ['mEdad','mAgua','mSanea','mEduc'].forEach(function(id){ if(charts[id]) charts[id].destroy(); });
+    const eE=document.getElementById('mEdad');
+    if(eE) charts.mEdad=new Chart(eE,{type:'bar',
+      data:{labels:['0-19','20-39','40-59','60+'],datasets:[{data:[r.p019||0,r.p2039||0,r.p4059||0,r.p60||0],backgroundColor:'#1f7a8c',borderRadius:5}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:9.5}}}}}});
+    const aguaD=[['Cañería',r.aCan],['Pileta',r.aPil],['Pozo',r.aPozo],['Río',r.aRio],['Manantial',r.aMan],['Lluvia',r.aLlu]].map(function(x){return [x[0],x[1]||0]}).filter(function(x){return x[1]>0});
+    const eA=document.getElementById('mAgua');
+    if(eA && aguaD.length) charts.mAgua=new Chart(eA,{type:'doughnut',
+      data:{labels:aguaD.map(function(x){return x[0]}),datasets:[{data:aguaD.map(function(x){return x[1]}),backgroundColor:PAL,borderWidth:2,borderColor:'#f6f4ee'}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'bottom',labels:{boxWidth:8,font:{size:9},padding:5}}}}});
+    const sanD=[['Alcantar.',r.snAlc],['Cám.séptica',r.snCam],['Pozo ciego',r.snPozo],['No tiene',r.snNo]].map(function(x){return [x[0],x[1]||0]}).filter(function(x){return x[1]>0});
+    const eS=document.getElementById('mSanea');
+    if(eS && sanD.length) charts.mSanea=new Chart(eS,{type:'doughnut',
+      data:{labels:sanD.map(function(x){return x[0]}),datasets:[{data:sanD.map(function(x){return x[1]}),backgroundColor:['#1f7a8c','#5c8a3a','#dba017','#c44536'],borderWidth:2,borderColor:'#f6f4ee'}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'bottom',labels:{boxWidth:8,font:{size:9},padding:5}}}}});
+    const eEd=document.getElementById('mEduc');
+    if(eEd) charts.mEduc=new Chart(eEd,{type:'bar',
+      data:{labels:['Ninguno','Primaria','Secund.','Superior'],datasets:[{data:[r.eNin||0,r.ePri||0,r.eSec||0,r.eSup||0],backgroundColor:'#5c8a3a',borderRadius:5}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:9.5}}}}}});
+  },60);
+}
+function abrirModalDesdePrograma(idx){
+  if(mapa) mapa.closePopup();
+  if(progMapa) progMapa.closePopup();
+  abrirModal(idx);
+}
+function cerrarModal(){
+  document.getElementById('modal').classList.remove('activo');
+  // Si veniamos de la etapa de seleccion de un programa, refrescar
+  // para reflejar el icono de nota agregada
+  if(progActualId && programas[progActualId] && programas[progActualId].etapa==='seleccion'){
+    renderListaComunidadesPrograma(progActualId);
+    if(progMapaListo) pintarMapaPrograma(progActualId);
+  }
+  ['mEdad','mAgua','mSanea','mEduc'].forEach(function(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } });
+}
+document.getElementById('modal').addEventListener('click',function(e){ if(e.target.id==='modal') cerrarModal(); });
+// ════════════════ PANEL DE COMENTARIO/FOTOS (desde la ficha) ════════════════
+function abrirPanelNota(){
+  if(!comActual || !progActualId) return;
+  const id = progActualId;
+  const k = comKey(comActual);
+  const p = programas[id];
+  if(!p.notas[k]) p.notas[k] = {comentario:'', fotos:[]};
+  const nota = p.notas[k];
+
+  document.getElementById('notaMeta').textContent = comActual.com+' · '+comActual.mun+' — '+(p.nombre||'Programa');
+
+  const fotosHtml = (nota.fotos||[]).map(function(foto,fi){
+    return '<div class="prog-foto-wrap"><img class="prog-foto-thumb" src="'+foto+'">'+
+      '<button class="prog-foto-del" onclick="quitarFotoNotaActual('+fi+')">×</button></div>';
+  }).join('');
+
+  document.getElementById('notaBody').innerHTML =
+    '<div class="modal-sec">'+
+      '<h4>💬 Comentario</h4>'+
+      '<textarea class="prog-comentario" id="notaComentarioInput" placeholder="Escribe observaciones sobre '+comActual.com+'…" '+
+        'oninput="guardarComentarioNotaActual(this.value)">'+(nota.comentario||'')+'</textarea>'+
+    '</div>'+
+    '<div class="modal-sec">'+
+      '<h4>📷 Fotografías</h4>'+
+      '<div class="prog-fotos-grid">'+fotosHtml+
+        '<label class="prog-foto-add">＋<input type="file" accept="image/*" capture="environment" '+
+        'style="display:none" onchange="agregarFotoNotaActual(this)"></label>'+
+      '</div>'+
+    '</div>';
+
+  document.getElementById('notaFondo').classList.add('activo');
+}
+function cerrarPanelNota(){
+  document.getElementById('notaFondo').classList.remove('activo');
+}
+function guardarComentarioNotaActual(val){
+  if(!comActual || !progActualId) return;
+  guardarComentarioComunidad(progActualId, comKey(comActual), val);
+}
+function agregarFotoNotaActual(input){
+  if(!comActual || !progActualId) return;
+  const id = progActualId, k = comKey(comActual);
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      const maxW=700, scale=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width*scale; canvas.height=img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg',0.7);
+      if(!programas[id].notas[k]) programas[id].notas[k] = {comentario:'',fotos:[]};
+      programas[id].notas[k].fotos.push(dataUrl);
+      guardarProgramas();
+      abrirPanelNota(); // re-renderiza el panel con la foto nueva
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function quitarFotoNotaActual(fi){
+  if(!comActual || !progActualId) return;
+  programas[progActualId].notas[comKey(comActual)].fotos.splice(fi,1);
+  guardarProgramas();
+  abrirPanelNota();
+}
+
+document.getElementById('notaFondo').addEventListener('click',function(e){ if(e.target.id==='notaFondo') cerrarPanelNota(); });
+// ════════════════ VISTA PREVIA PDF PROFESIONAL ════════════════
+function filaPrevia(label,val){
+  return '<tr><td>'+label+'</td><td>'+(typeof val==='number'?val.toLocaleString():(val||'Sin dato'))+'</td></tr>';
+}
+
+function construirHTMLPrevia(r){
+  const pT=r.pT||0, pH=r.pH||0, pM=r.pM||0;
+  const pctH=pT?Math.round(pH/pT*100):0, pctM=pT?Math.round(pM/pT*100):0;
+  const fecha = new Date().toLocaleDateString('es-BO',{year:'numeric',month:'long',day:'numeric'});
+
+  return '<div class="previa-doc" id="previaDoc">'+
+    '<div class="pv-encabezado">'+
+      '<div class="pv-logo">💧</div>'+
+      '<div class="pv-tituloBox">'+
+        '<div class="pv-eyebrow">FICHA TÉCNICA · CENSO DE COMUNIDADES</div>'+
+        '<h1>'+r.com+'</h1>'+
+        '<div class="pv-ubicacion">'+r.mun+', '+r.prov+' · '+r.dep+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="pv-meta-bar">'+
+      '<div><span>Tipo</span><b>'+r.tipo+'</b></div>'+
+      '<div><span>Coordenadas</span><b>'+(r.lat?r.lat.toFixed(5)+', '+r.lon.toFixed(5):'Sin dato')+'</b></div>'+
+      '<div><span>Fecha de emisión</span><b>'+fecha+'</b></div>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>1. Población</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Indicador</th><th>Valor</th></tr></thead><tbody>'+
+        filaPrevia('Población total',pT)+
+        filaPrevia('Hombres',pH+' ('+pctH+'%)')+
+        filaPrevia('Mujeres',pM+' ('+pctM+'%)')+
+        filaPrevia('0 a 19 años',r.p019)+
+        filaPrevia('20 a 39 años',r.p2039)+
+        filaPrevia('40 a 59 años',r.p4059)+
+        filaPrevia('60 años o más',r.p60)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>2. Vivienda</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Indicador</th><th>Valor</th></tr></thead><tbody>'+
+        filaPrevia('Total de viviendas',r.vT)+
+        filaPrevia('Viviendas ocupadas',r.vOcup)+
+        filaPrevia('Viviendas propias',r.vProp)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>3. Fuente de agua</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Fuente</th><th>Viviendas</th></tr></thead><tbody>'+
+        filaPrevia('Cañería de red',r.aCan)+
+        filaPrevia('Pileta pública',r.aPil)+
+        filaPrevia('Pozo con bomba',r.aPozo)+
+        filaPrevia('Río, acequia o vertiente',r.aRio)+
+        filaPrevia('Manantial',r.aMan)+
+        filaPrevia('Agua de lluvia',r.aLlu)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>4. Saneamiento</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Tipo</th><th>Viviendas</th></tr></thead><tbody>'+
+        filaPrevia('Alcantarillado',r.snAlc)+
+        filaPrevia('Cámara séptica',r.snCam)+
+        filaPrevia('Pozo ciego',r.snPozo)+
+        filaPrevia('No tiene',r.snNo)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>5. Energía eléctrica</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Tipo</th><th>Viviendas</th></tr></thead><tbody>'+
+        filaPrevia('Servicio público',r.elPub)+
+        filaPrevia('Sin electricidad',r.elNo)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>6. Educación</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Nivel de instrucción</th><th>Personas</th></tr></thead><tbody>'+
+        filaPrevia('Sin instrucción',r.eNin)+
+        filaPrevia('Primaria',r.ePri)+
+        filaPrevia('Secundaria',r.eSec)+
+        filaPrevia('Superior',r.eSup)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>7. Salud</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Cobertura</th><th>Personas</th></tr></thead><tbody>'+
+        filaPrevia('Atención SUS',r.sSUS)+
+        filaPrevia('Caja de salud',r.sCaja)+
+        filaPrevia('Seguro privado',r.sPriv)+
+        filaPrevia('Sin seguro',r.sNin)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>8. Actividad económica</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Actividad</th><th>Personas</th></tr></thead><tbody>'+
+        filaPrevia('Agricultura y ganadería',r.ecAgri)+
+        filaPrevia('Comercio',r.ecCom)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>9. Cocina y manejo de residuos</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Indicador</th><th>Viviendas</th></tr></thead><tbody>'+
+        filaPrevia('Cocina con gas en garrafa',r.cGas)+
+        filaPrevia('Cocina con leña',r.cLena)+
+        filaPrevia('Basura: contenedor público',r.bCont)+
+        filaPrevia('Basura: la queman',r.bQuem)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-seccion">'+
+      '<h2>10. Tecnología y comunicación</h2>'+
+      '<table class="pv-tabla"><thead><tr><th>Indicador</th><th>Personas/Viviendas</th></tr></thead><tbody>'+
+        filaPrevia('Teléfono celular',r.tCel)+
+        filaPrevia('Internet',r.tInt)+
+        filaPrevia('Televisión',r.tTV)+
+      '</tbody></table>'+
+    '</div>'+
+
+    '<div class="pv-pie">Fuente: Censo Nacional de Población y Vivienda · Instituto Nacional de Estadística (INE), Bolivia</div>'+
+  '</div>';
+}
+
+function abrirPreviaPDF(){
+  if(!comActual) return;
+  document.getElementById('previaBody').innerHTML = construirHTMLPrevia(comActual);
+  document.getElementById('previaFondo').classList.add('activo');
+}
+function cerrarPrevia(){
+  document.getElementById('previaFondo').classList.remove('activo');
+}
+
+async function generarPDFReal(){
+  if(!comActual) return;
+  const btn = document.getElementById('btnGenerarReal');
+  btn.disabled = true; btn.textContent = '⏳ Generando…';
+  try{
+    const r = comActual;
+    const jsPDF = window.jspdf.jsPDF;
+    const pdf = new jsPDF('p','mm','a4');
+    const pageW = 210, marginL = 16, marginR = 16, contW = pageW - marginL - marginR;
+    let y = 18;
+
+    const colInk = [19,32,28], colMuted=[112,122,115], colAgua=[31,122,140], colAguaD=[21,94,109], colLine=[227,225,212];
+
+    function checkSalto(extra){
+      if(y + extra > 280){ pdf.addPage(); y = 18; dibujarPie(); }
+    }
+    function dibujarPie(){
+      pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text('Fuente: Censo INE Bolivia',marginL,291);
+      pdf.text('Pág. '+pdf.internal.getNumberOfPages(),pageW-marginR,291,{align:'right'});
+    }
+
+    // Encabezado
+    pdf.setFillColor.apply(pdf,colAgua);
+    pdf.rect(0,0,pageW,32,'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(8.5); pdf.setFont(undefined,'bold');
+    pdf.text('FICHA TÉCNICA · CENSO DE COMUNIDADES',marginL,10);
+    pdf.setFontSize(18); pdf.setFont(undefined,'bold');
+    pdf.text(r.com,marginL,20);
+    pdf.setFontSize(10); pdf.setFont(undefined,'normal');
+    pdf.text(r.mun+', '+r.prov+' · '+r.dep,marginL,27);
+    y = 40;
+
+    // Barra meta
+    pdf.setTextColor.apply(pdf,colInk);
+    pdf.setFontSize(8.5);
+    const fecha = new Date().toLocaleDateString('es-BO',{year:'numeric',month:'long',day:'numeric'});
+    pdf.setFont(undefined,'bold');
+    pdf.text('Tipo: '+r.tipo,marginL,y);
+    pdf.text('Coordenadas: '+(r.lat?r.lat.toFixed(5)+', '+r.lon.toFixed(5):'Sin dato'),marginL+65,y);
+    pdf.text('Emitido: '+fecha,marginL+135,y);
+    pdf.setFont(undefined,'normal');
+    y += 7;
+    pdf.setDrawColor.apply(pdf,colLine);
+    pdf.line(marginL,y,pageW-marginR,y);
+    y += 8;
+
+    // Mapa de ubicación de la comunidad dentro de Bolivia
+    if(r.lat && r.lon){
+      try{
+        const mapaImg = await generarImagenMapaComunidad(r);
+        if(mapaImg){
+          const mapW = 62, mapH = 70;
+          checkSalto(mapH+6);
+          pdf.setFontSize(8); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colAguaD);
+          pdf.text('UBICACIÓN EN BOLIVIA',marginL,y);
+          pdf.addImage(mapaImg,'PNG',marginL,y+3,mapW,mapH);
+          pdf.setDrawColor.apply(pdf,colLine);
+          pdf.rect(marginL,y+3,mapW,mapH);
+          pdf.setFont(undefined,'normal'); pdf.setFontSize(7); pdf.setTextColor.apply(pdf,colMuted);
+          pdf.text('Lat '+r.lat.toFixed(4)+'°, Lon '+r.lon.toFixed(4)+'°', marginL, y+3+mapH+4);
+          y += mapH + 10;
+        }
+      }catch(e){ /* si falla el mapa, continuar sin el */ }
+    }
+
+    function tituloSeccion(num,texto){
+      checkSalto(14);
+      pdf.setFontSize(11.5); pdf.setFont(undefined,'bold');
+      pdf.setTextColor.apply(pdf,colAguaD);
+      pdf.text(num+'. '+texto,marginL,y);
+      y += 2;
+      pdf.setDrawColor.apply(pdf,colAgua);
+      pdf.setLineWidth(0.6);
+      pdf.line(marginL,y,marginL+contW,y);
+      pdf.setLineWidth(0.2);
+      y += 6;
+      pdf.setFont(undefined,'normal');
+      pdf.setTextColor.apply(pdf,colInk);
+    }
+
+    function tabla(filas, colLabel, colVal){
+      const rowH = 6.5;
+      checkSalto(rowH*filas.length + 4);
+      // encabezado tabla
+      pdf.setFillColor(243,242,234);
+      pdf.rect(marginL,y-4.5,contW,rowH,'F');
+      pdf.setFontSize(8); pdf.setFont(undefined,'bold');
+      pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text(colLabel,marginL+2,y);
+      pdf.text(colVal,marginL+contW-2,y,{align:'right'});
+      y += rowH;
+      pdf.setFont(undefined,'normal');
+      filas.forEach(function(f,i){
+        checkSalto(rowH);
+        if(i%2===1){ pdf.setFillColor(250,249,245); pdf.rect(marginL,y-4.5,contW,rowH,'F'); }
+        pdf.setFontSize(8.5);
+        pdf.setTextColor.apply(pdf,colInk);
+        pdf.text(String(f[0]),marginL+2,y);
+        pdf.setFont(undefined,'bold');
+        const val = typeof f[1]==='number' ? f[1].toLocaleString('es-BO') : (f[1]||'Sin dato');
+        pdf.text(String(val),marginL+contW-2,y,{align:'right'});
+        pdf.setFont(undefined,'normal');
+        y += rowH;
+      });
+      y += 5;
+    }
+
+    const pT=r.pT||0, pH=r.pH||0, pM=r.pM||0;
+    const pctH=pT?Math.round(pH/pT*100):0, pctM=pT?Math.round(pM/pT*100):0;
+
+    tituloSeccion('1','Población');
+    tabla([
+      ['Población total',pT],['Hombres',pH+' ('+pctH+'%)'],['Mujeres',pM+' ('+pctM+'%)'],
+      ['0 a 19 años',r.p019||0],['20 a 39 años',r.p2039||0],['40 a 59 años',r.p4059||0],['60 años o más',r.p60||0]
+    ],'INDICADOR','VALOR');
+
+    tituloSeccion('2','Vivienda');
+    tabla([['Total de viviendas',r.vT||0],['Viviendas ocupadas',r.vOcup||0],['Viviendas propias',r.vProp||0]],'INDICADOR','VALOR');
+
+    tituloSeccion('3','Fuente de agua');
+    tabla([
+      ['Cañería de red',r.aCan||0],['Pileta pública',r.aPil||0],['Pozo con bomba',r.aPozo||0],
+      ['Río, acequia o vertiente',r.aRio||0],['Manantial',r.aMan||0],['Agua de lluvia',r.aLlu||0]
+    ],'FUENTE','VIVIENDAS');
+
+    tituloSeccion('4','Saneamiento');
+    tabla([['Alcantarillado',r.snAlc||0],['Cámara séptica',r.snCam||0],['Pozo ciego',r.snPozo||0],['No tiene',r.snNo||0]],'TIPO','VIVIENDAS');
+
+    tituloSeccion('5','Energía eléctrica');
+    tabla([['Servicio público',r.elPub||0],['Sin electricidad',r.elNo||0]],'TIPO','VIVIENDAS');
+
+    tituloSeccion('6','Educación');
+    tabla([['Sin instrucción',r.eNin||0],['Primaria',r.ePri||0],['Secundaria',r.eSec||0],['Superior',r.eSup||0]],'NIVEL','PERSONAS');
+
+    tituloSeccion('7','Salud');
+    tabla([['Atención SUS',r.sSUS||0],['Caja de salud',r.sCaja||0],['Seguro privado',r.sPriv||0],['Sin seguro',r.sNin||0]],'COBERTURA','PERSONAS');
+
+    tituloSeccion('8','Actividad económica');
+    tabla([['Agricultura y ganadería',r.ecAgri||0],['Comercio',r.ecCom||0]],'ACTIVIDAD','PERSONAS');
+
+    tituloSeccion('9','Cocina y manejo de residuos');
+    tabla([
+      ['Cocina con gas en garrafa',r.cGas||0],['Cocina con leña',r.cLena||0],
+      ['Basura: contenedor público',r.bCont||0],['Basura: la queman',r.bQuem||0]
+    ],'INDICADOR','VIVIENDAS');
+
+    tituloSeccion('10','Tecnología y comunicación');
+    tabla([['Teléfono celular',r.tCel||0],['Internet',r.tInt||0],['Televisión',r.tTV||0]],'INDICADOR','PERSONAS');
+
+    dibujarPie();
+    pdf.save(r.com.replace(/[^a-zA-Z0-9]/g,'_')+'_'+r.mun.replace(/[^a-zA-Z0-9]/g,'_')+'_FICHA.pdf');
+    cerrarPrevia();
+  }catch(e){ alert('Error generando PDF: '+e.message); }
+  btn.disabled=false; btn.textContent='⬇️ Descargar PDF';
+}
+
+
+// ════════════════ PROGRAMAS v2 (proyectos guardados localmente) ════════════════
+const PROG_KEY = 'censoBO_programas_v2';
+let programas = {};
+let progActualId = null;
+
+function progNuevo(){
+  return {
+    nombre: '', creado: Date.now(),
+    etapa: 'municipios',          // municipios -> seleccion
+    municipios: [],                // [{mun,dep,prov}]
+    comKeys: [],                   // keys de comunidades que pasaron el filtro (candidatas)
+    seleccion: {},                 // { comKey: true } - cuáles están elegidas
+    notas: {},                     // { comKey: {comentario, fotos:[]} }
+    filtros: { popMin:'', popMax:'', aguaOn:false, aguaMin:'', saneOn:false, saneMin:'' }
+  };
+}
+function comKey(r){ return r.mun+'||'+r.com; }
+
+function cargarProgramas(){
+  try{ const raw = localStorage.getItem(PROG_KEY); programas = raw ? JSON.parse(raw) : {}; }
+  catch(e){ programas = {}; }
+}
+function guardarProgramas(){
+  try{ localStorage.setItem(PROG_KEY, JSON.stringify(programas)); }
+  catch(e){ alert('No se pudo guardar: almacenamiento lleno. Elimina fotos o programas viejos.'); }
+}
+
+function renderProgramas(){
+  cargarProgramas();
+  if(progActualId && programas[progActualId]){
+    const p = programas[progActualId];
+    if(p.etapa==='municipios') renderEtapaMunicipios(progActualId);
+    else renderEtapaSeleccion(progActualId);
+  } else {
+    renderListaProgramas();
+  }
+}
+
+// ───────── LISTA DE PROGRAMAS ─────────
+function renderListaProgramas(){
+  const ids = Object.keys(programas).sort(function(a,b){ return (programas[b].creado||0)-(programas[a].creado||0); });
+  let html = '<div class="seccion-titulo"><span>Mis programas</span></div>'+
+    '<button class="btn-nuevo-prog" onclick="crearPrograma()">＋ Nuevo programa</button>';
+  if(ids.length===0){
+    html += '<div class="prog-vacio"><div class="ic">📊</div>Aún no tienes programas guardados.<br>Crea uno para empezar.</div>';
+  } else {
+    html += '<div class="prog-lista-grid">';
+    ids.forEach(function(id){
+      const p = programas[id];
+      const nMun = (p.municipios||[]).length;
+      const nSel = Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];}).length;
+      const fecha = p.creado ? new Date(p.creado).toLocaleDateString('es-BO',{day:'2-digit',month:'short',year:'numeric'}) : '';
+      const nombre = p.nombre || '(Sin nombre)';
+      html += '<div class="prog-card" onclick="abrirPrograma(\''+id+'\')">'+
+        '<div class="prog-card-ic">📊</div>'+
+        '<div class="prog-card-info"><div class="prog-card-nombre">'+nombre+'</div>'+
+        '<div class="prog-card-meta">'+nMun+' municipio'+(nMun===1?'':'s')+' · '+nSel+' comunidad'+(nSel===1?'':'es')+' · '+fecha+'</div></div>'+
+        '<button class="prog-card-del" onclick="event.stopPropagation();borrarPrograma(\''+id+'\')">🗑️</button>'+
+        '</div>';
+    });
+    html += '</div>';
+  }
+  document.getElementById('progRaiz').innerHTML = html;
+}
+
+function crearPrograma(){
+  const n = Object.keys(programas).length + 1;
+  const id = 'p_' + Date.now();
+  const p = progNuevo();
+  p.nombre = 'Programa '+n;
+  programas[id] = p;
+  guardarProgramas();
+  progActualId = id;
+  renderProgramas();
+}
+function abrirPrograma(id){ progActualId = id; renderProgramas(); }
+function volverListaProgramas(){ progActualId = null; renderProgramas(); }
+function borrarPrograma(id){
+  if(!confirm('¿Eliminar "'+(programas[id].nombre||'este programa')+'"? Esta acción no se puede deshacer.')) return;
+  delete programas[id]; guardarProgramas(); renderProgramas();
+}
+function renombrarPrograma(id, val){ programas[id].nombre = val; guardarProgramas(); }
+
+function encabezadoEditor(id, pasoActivo){
+  const p = programas[id];
+  const pasos = ['Municipios','Filtrar y explorar comunidades'];
+  let stepsHtml = pasos.map(function(txt,i){
+    const cls = i===pasoActivo ? 'activo' : (i<pasoActivo ? 'hecho' : '');
+    return '<span class="prog-step '+cls+'">'+(i+1)+'. '+txt+'</span>'+(i<1?'<span class="prog-step-sep">›</span>':'');
+  }).join('');
+  return '<div class="prog-editor-head">'+
+    '<button class="prog-back" onclick="volverListaProgramas()">←</button>'+
+    '<input class="prog-nombre-input" value="'+(p.nombre||'')+'" placeholder="Nombre del programa…" '+
+    'onchange="renombrarPrograma(\''+id+'\',this.value)">'+
+    '</div>'+
+    '<div class="prog-step-bar">'+stepsHtml+'</div>';
+}
+
+// ───────── ETAPA 1: SELECCIÓN DE MUNICIPIOS ─────────
+function renderEtapaMunicipios(id){
+  const p = programas[id];
+  let html = encabezadoEditor(id,0)+
+    '<div class="prog-buscador">'+
+      '<input type="text" id="progBuscarMun" placeholder="Buscar municipio para añadir…" oninput="buscarMunPrograma(this.value)">'+
+      '<div class="prog-resultados" id="progResultados" style="display:none"></div>'+
+    '</div>'+
+    '<div class="prog-mun-lista-simple" id="progMunListaSimple"></div>';
+  if(p.municipios.length>0){
+    html += '<button class="prog-continuar-btn" onclick="irAEtapaSeleccion(\''+id+'\')">Continuar → Filtrar comunidades</button>';
+  }
+  document.getElementById('progRaiz').innerHTML = html;
+  renderMunSimple(id);
+}
+function renderMunSimple(id){
+  const p = programas[id];
+  const cont = document.getElementById('progMunListaSimple');
+  if(p.municipios.length===0){
+    cont.innerHTML = '<div class="prog-vacio"><div class="ic">🔍</div>Busca y añade municipios arriba.</div>';
+    return;
+  }
+  cont.innerHTML = '<div class="prog-mun-lista">' + p.municipios.map(function(m,i){
+    return '<div class="prog-mun-card"><div class="prog-mun-card-top">'+
+      '<div class="prog-mun-card-nombre">'+m.mun+', '+m.dep+'</div>'+
+      '<button class="prog-mun-quitar" onclick="quitarMunDePrograma('+i+')">🗑️</button>'+
+      '</div></div>';
+  }).join('') + '</div>';
+}
+function buscarMunPrograma(q){
+  const cont = document.getElementById('progResultados');
+  q = q.trim().toLowerCase();
+  if(q.length<2){ cont.style.display='none'; cont.innerHTML=''; return; }
+  const vistos = {}; const resultados = [];
+  for(const r of DATOS){
+    if(r.mun.toLowerCase().includes(q) && !vistos[r.mun+'|'+r.dep]){
+      vistos[r.mun+'|'+r.dep]=true;
+      resultados.push({mun:r.mun,dep:r.dep,prov:r.prov});
+      if(resultados.length>=12) break;
+    }
+  }
+  cont.innerHTML = resultados.length===0
+    ? '<div class="prog-resultado-item" style="color:var(--muted)">Sin resultados</div>'
+    : resultados.map(function(r){
+        return '<div class="prog-resultado-item" onclick="agregarMunAPrograma(\''+r.mun.replace(/'/g,"\\'")+'\',\''+r.dep.replace(/'/g,"\\'")+'\',\''+r.prov.replace(/'/g,"\\'")+'\')">'+
+          '<b>'+r.mun+'</b><span>'+r.prov+', '+r.dep+'</span></div>';
+      }).join('');
+  cont.style.display='block';
+}
+function agregarMunAPrograma(mun,dep,prov){
+  const p = programas[progActualId];
+  if(p.municipios.some(function(m){return m.mun===mun && m.dep===dep;})){ alert(mun+' ya está en este programa.'); return; }
+  p.municipios.push({mun:mun,dep:dep,prov:prov});
+  guardarProgramas();
+  document.getElementById('progBuscarMun').value='';
+  document.getElementById('progResultados').style.display='none';
+  renderEtapaMunicipios(progActualId);
+}
+function quitarMunDePrograma(idx){
+  programas[progActualId].municipios.splice(idx,1);
+  guardarProgramas();
+  renderEtapaMunicipios(progActualId);
+}
+
+// ───────── ETAPA 2: FILTRAR Y SELECCIONAR COMUNIDADES ─────────
+function irAEtapaSeleccion(id){
+  programas[id].etapa = 'seleccion';
+  guardarProgramas();
+  renderProgramas();
+}
+function volverAEtapaMunicipios(id){
+  programas[id].etapa = 'municipios';
+  guardarProgramas();
+  renderProgramas();
+}
+
+function comunidadesDelPrograma(p){
+  const munSet = {};
+  p.municipios.forEach(function(m){ munSet[m.mun+'|'+m.dep]=true; });
+  return DATOS.filter(function(r){ return munSet[r.mun+'|'+r.dep]; });
+}
+
+function cumpleFiltros(r, f){
+  const pT = typeof r.pT==='number' ? r.pT : 0;
+  if(f.popMin!=='' && f.popMin!=null && !isNaN(+f.popMin) && pT < +f.popMin) return false;
+  if(f.popMax!=='' && f.popMax!=null && !isNaN(+f.popMax) && pT > +f.popMax) return false;
+  if(f.aguaOn && f.aguaMin!=='' && f.aguaMin!=null && !isNaN(+f.aguaMin)){
+    const aguaTot=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+    const pctAgua = aguaTot>0 ? Math.round(((r.aCan||0)+(r.aPil||0))/aguaTot*100) : 0;
+    if(pctAgua >= +f.aguaMin) return false; // queremos cobertura MENOR a este valor
+  }
+  if(f.saneOn && f.saneMin!=='' && f.saneMin!=null && !isNaN(+f.saneMin)){
+    const sanTot=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+    const pctSinSane = sanTot>0 ? Math.round((r.snNo||0)/sanTot*100) : 0;
+    if(pctSinSane < +f.saneMin) return false; // queremos % sin saneamiento MAYOR a este valor
+  }
+  return true;
+}
+
+function renderEtapaSeleccion(id){
+  const p = programas[id];
+  const f = p.filtros;
+
+  let html = encabezadoEditor(id,1)+
+    '<div class="prog-filtros-box">'+
+      '<h4>Filtros para elegir comunidades</h4>'+
+      '<div class="prog-filtro-fila">'+
+        '<div class="prog-filtro-label">Población total</div>'+
+        '<div class="prog-rango-inputs">'+
+          '<input type="number" id="fPopMin" placeholder="Mín." value="'+f.popMin+'">'+
+          '<span>—</span>'+
+          '<input type="number" id="fPopMax" placeholder="Máx." value="'+f.popMax+'">'+
+        '</div>'+
+      '</div>'+
+      '<div class="prog-filtro-fila">'+
+        '<div class="prog-check-row"><input type="checkbox" id="fAguaOn" '+(f.aguaOn?'checked':'')+'>'+
+        '<label for="fAguaOn">Priorizar baja cobertura de agua potable (cañería/pileta)</label></div>'+
+        '<div class="prog-rango-inputs" style="margin-top:6px">'+
+          '<span style="font-size:.72rem">Cobertura menor a</span>'+
+          '<input type="number" id="fAguaMin" placeholder="%" value="'+f.aguaMin+'" style="max-width:70px">'+
+          '<span>%</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="prog-filtro-fila">'+
+        '<div class="prog-check-row"><input type="checkbox" id="fSaneOn" '+(f.saneOn?'checked':'')+'>'+
+        '<label for="fSaneOn">Priorizar sin saneamiento básico</label></div>'+
+        '<div class="prog-rango-inputs" style="margin-top:6px">'+
+          '<span style="font-size:.72rem">% sin saneamiento mayor a</span>'+
+          '<input type="number" id="fSaneMin" placeholder="%" value="'+f.saneMin+'" style="max-width:70px">'+
+          '<span>%</span>'+
+        '</div>'+
+      '</div>'+
+      '<button class="prog-aplicar-filtros" onclick="aplicarFiltrosPrograma(\''+id+'\')">Aplicar filtros</button>'+
+    '</div>'+
+
+    '<div class="prog-resumen-sel">'+
+      '<div class="chip" id="chipTotalFiltradas"><div class="num">0</div><div class="lbl">Cumplen el filtro</div></div>'+
+      '<div class="chip" id="chipSeleccionadas"><div class="num">'+Object.keys(p.seleccion).filter(function(k){return p.seleccion[k];}).length+'</div><div class="lbl">Seleccionadas</div></div>'+
+    '</div>'+
+
+    '<div class="prog-toolbar-sel">'+
+      '<button class="btn-sel-todas" onclick="seleccionarTodasFiltradas(\''+id+'\')">✓ Marcar todas las filtradas</button>'+
+      '<button class="btn-sel-ninguna" onclick="deseleccionarTodas(\''+id+'\')">Limpiar selección</button>'+
+    '</div>'+
+
+    '<div class="prog-subtabs">'+
+      '<button class="prog-subtab activo" id="progSubMapa" onclick="cambiarSubVistaProg(\'mapa\',\''+id+'\')">🗺️ Mapa</button>'+
+      '<button class="prog-subtab" id="progSubLista" onclick="cambiarSubVistaProg(\'lista\',\''+id+'\')">📋 Lista y datos</button>'+
+    '</div>'+
+
+    '<div class="prog-sub-vista activa" id="progVistaMapaSel">'+
+      '<div class="prog-mapa-wrap">'+
+        '<div class="prog-mapa-resumen"><div><b id="progMrTotal">—</b>filtradas</div><div><b id="progMrSel">—</b>seleccionadas</div></div>'+
+        '<div class="prog-mapa-el" id="progMapaEl"></div>'+
+      '</div>'+
+    '</div>'+
+
+    '<div class="prog-sub-vista" id="progVistaListaSel">'+
+      '<div class="grid" id="progGraficosWrap" style="margin-bottom:13px"></div>'+
+      '<div class="lista-com" id="progListaCom"></div>'+
+    '</div>'+
+
+    '<button class="btn-export-prog" id="btnExportProgEtapa2" style="display:none" onclick="exportarProgramaPDF(\''+id+'\')">📄 Reporte detallado (con fotos y comentarios)</button>'+
+    '<button class="btn-export-prog" id="btnExportEstadisticas" style="display:none;background:var(--agua);margin-top:8px" onclick="exportarEstadisticasPrograma(\''+id+'\')">📊 Reporte estadístico del conjunto filtrado</button>'+
+    '<button class="prog-back" style="margin-top:8px;width:100%;border-radius:9px" onclick="volverAEtapaMunicipios(\''+id+'\')">← Editar municipios</button>';
+
+  document.getElementById('progRaiz').innerHTML = html;
+  progMapaListo = false;
+  initMapaPrograma(id);
+  renderListaComunidadesPrograma(id);
+}
+
+function cambiarSubVistaProg(v,id){
+  document.getElementById('progSubMapa').classList.toggle('activo', v==='mapa');
+  document.getElementById('progSubLista').classList.toggle('activo', v==='lista');
+  document.getElementById('progVistaMapaSel').classList.toggle('activa', v==='mapa');
+  document.getElementById('progVistaListaSel').classList.toggle('activa', v==='lista');
+  if(v==='mapa' && progMapa) setTimeout(function(){ progMapa.invalidateSize(); },80);
+}
+
+// ───────── MINI-MAPA DE LA ETAPA 2 ─────────
+let progMapa, progCapaClusters, progMapaListo=false, progMapaIdActual=null;
+
+function initMapaPrograma(id){
+  progMapaIdActual = id;
+  if(progMapa){ progMapa.remove(); progMapa=null; }
+  progMapa = L.map('progMapaEl',{zoomControl:true,attributionControl:false}).setView([-16.5,-64.5],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(progMapa);
+  progCapaClusters = L.markerClusterGroup({
+    chunkedLoading:true, maxClusterRadius:50,
+    iconCreateFunction:function(cluster){
+      const n = cluster.getChildCount();
+      let px = n<50?34:n<300?42:50;
+      return L.divIcon({
+        html:'<div style="width:'+px+'px;height:'+px+'px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:'+(px>40?'.85rem':'.72rem')+'">'+n+'</div>',
+        className:'marker-cluster marker-cluster-d', iconSize:L.point(px,px)
+      });
+    }
+  });
+  progMapa.addLayer(progCapaClusters);
+  progMapaListo = true;
+  pintarMapaPrograma(id);
+}
+
+function pintarMapaPrograma(id){
+  if(!progMapaListo || !progMapa) return;
+  const p = programas[id];
+  const todas = comunidadesDelPrograma(p);
+  const filtradas = todas.filter(function(r){ return cumpleFiltros(r,p.filtros); });
+
+  progCapaClusters.clearLayers();
+  const marks = [];
+  filtradas.forEach(function(r){
+    if(!r.lat || !r.lon) return;
+    const k = comKey(r);
+    const sel = !!p.seleccion[k];
+    const color = sel ? '#5c8a3a' : (r.tipo==='Dispersa' ? '#b56b45' : '#1f7a8c');
+    const m = L.circleMarker([r.lat,r.lon],{radius: sel?7:6, color:'#fff', weight:1.5, fillColor:color, fillOpacity:.92});
+    const kEsc = k.replace(/'/g,"\\'");
+    const idx = DATOS.indexOf(r);
+    m.bindPopup(
+      '<div class="popup-nombre">'+r.com+'</div>'+
+      '<div class="popup-meta">'+r.mun+' · '+(r.pT||0).toLocaleString()+' hab.</div>'+
+      '<button class="popup-btn-marcar '+(sel?'ya-marcada':'')+'" onclick="toggleDesdeMapa(\''+id+'\',\''+kEsc+'\')">'+
+        (sel?'✓ En el programa (quitar)':'＋ Añadir al programa')+
+      '</button>'+
+      '<button class="popup-btn" style="margin-top:5px" onclick="abrirModalDesdePrograma('+idx+')">Ver ficha completa</button>'
+    );
+    marks.push(m);
+  });
+  progCapaClusters.addLayers(marks);
+
+  document.getElementById('progMrTotal').textContent = filtradas.length.toLocaleString();
+  const nSel = Object.keys(p.seleccion).filter(function(k){return p.seleccion[k];}).length;
+  document.getElementById('progMrSel').textContent = nSel.toLocaleString();
+  const chipT = document.getElementById('chipTotalFiltradas');
+  if(chipT) chipT.querySelector('.num').textContent = filtradas.length.toLocaleString();
+  const btnExport = document.getElementById('btnExportProgEtapa2');
+  if(btnExport) btnExport.style.display = nSel>0 ? 'block' : 'none';
+  const btnEstad = document.getElementById('btnExportEstadisticas');
+  if(btnEstad) btnEstad.style.display = filtradas.length>0 ? 'block' : 'none';
+
+  if(marks.length){
+    try{ progMapa.fitBounds(L.featureGroup(marks).getBounds(),{padding:[28,28],maxZoom:13}); }catch(e){}
+  } else {
+    progMapa.setView([-16.5,-64.5],6);
+  }
+}
+
+function toggleDesdeMapa(id,k){
+  const p = programas[id];
+  if(p.seleccion[k]) delete p.seleccion[k]; else p.seleccion[k]=true;
+  guardarProgramas();
+  progMapa.closePopup();
+  pintarMapaPrograma(id);
+  // refrescar chip y lista por si se cambia de subtab
+  const n = Object.keys(p.seleccion).filter(function(kk){return p.seleccion[kk];}).length;
+  const chipS = document.getElementById('chipSeleccionadas');
+  if(chipS) chipS.querySelector('.num').textContent = n;
+  renderListaComunidadesPrograma(id);
+}
+
+function renderListaComunidadesPrograma(id){
+  const p = programas[id];
+  const todas = comunidadesDelPrograma(p);
+  const filtradas = todas.filter(function(r){ return cumpleFiltros(r,p.filtros); });
+  const cont = document.getElementById('progListaCom');
+  const chipT = document.getElementById('chipTotalFiltradas');
+  if(chipT) chipT.querySelector('.num').textContent = filtradas.length.toLocaleString();
+
+  const nSelTotal = Object.keys(p.seleccion).filter(function(k){return p.seleccion[k];}).length;
+  const btnExport = document.getElementById('btnExportProgEtapa2');
+  if(btnExport) btnExport.style.display = nSelTotal>0 ? 'block' : 'none';
+  const btnEstad = document.getElementById('btnExportEstadisticas');
+  if(btnEstad) btnEstad.style.display = filtradas.length>0 ? 'block' : 'none';
+
+  // Gráficos agregados de SOLO las comunidades filtradas (reutiliza dibujarGraficos pero con ids propios)
+  const wrap = document.getElementById('progGraficosWrap');
+  if(wrap){
+    wrap.innerHTML =
+      '<div class="tarjeta"><h3>💧 Fuente de agua</h3><div class="chart-box"><canvas id="progChAgua"></canvas></div></div>'+
+      '<div class="tarjeta"><h3>🚽 Saneamiento</h3><div class="chart-box"><canvas id="progChSanea"></canvas></div></div>';
+    dibujarGraficosPrograma(filtradas);
+  }
+
+  if(!cont) return;
+  if(filtradas.length===0){
+    cont.innerHTML = '<div class="vacio">Ninguna comunidad cumple estos filtros.</div>';
+    return;
+  }
+  cont.innerHTML = filtradas.map(function(r){
+    const k = comKey(r);
+    const sel = !!p.seleccion[k];
+    const tieneNota = !!(p.notas[k] && (p.notas[k].comentario || (p.notas[k].fotos&&p.notas[k].fotos.length)));
+    const idx = DATOS.indexOf(r);
+    const aguaTot=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+    const pctAgua = aguaTot ? Math.round(((r.aCan||0)+(r.aPil||0))/aguaTot*100) : 0;
+    const sanTot=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+    const pctSane = sanTot ? Math.round(((r.snAlc||0)+(r.snCam||0))/sanTot*100) : 0;
+    return '<div class="prog-com-card '+(sel?'seleccionada':'')+'">'+
+      '<input type="checkbox" class="prog-com-check" '+(sel?'checked':'')+' onchange="toggleSeleccionComunidad(\''+id+'\',\''+k.replace(/'/g,"\\'")+'\',this.checked)" onclick="event.stopPropagation()">'+
+      '<div class="prog-com-info" onclick="abrirModalDesdePrograma('+idx+')">'+
+        '<div class="prog-com-nombre">'+r.com+(tieneNota?' <span title="Tiene comentario o fotos">📝</span>':'')+'</div>'+
+        '<div class="prog-com-meta">'+r.mun+' · '+r.tipo+'</div>'+
+        '<div class="prog-com-indicadores">'+
+          '<span>👥 <b>'+(r.pT||0).toLocaleString()+'</b> hab.</span>'+
+          '<span>💧 <b>'+pctAgua+'%</b> agua</span>'+
+          '<span>🚽 <b>'+pctSane+'%</b> saneam.</span>'+
+        '</div>'+
+      '</div></div>';
+  }).join('');
+}
+
+function dibujarGraficosPrograma(filtradas){
+  ['progChAgua','progChSanea'].forEach(function(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } });
+  const agua=[['Cañería','aCan'],['Pileta','aPil'],['Pozo','aPozo'],['Río','aRio'],['Manantial','aMan'],['Lluvia','aLlu']]
+    .map(function(x){return [x[0],suma(filtradas,x[1])]}).filter(function(x){return x[1]>0});
+  if(agua.length) torta('progChAgua',agua.map(function(x){return x[0]}),agua.map(function(x){return x[1]}));
+  const san=[['Alcantar.','snAlc'],['Cám. séptica','snCam'],['Pozo ciego','snPozo'],['No tiene','snNo']]
+    .map(function(x){return [x[0],suma(filtradas,x[1])]}).filter(function(x){return x[1]>0});
+  if(san.length) torta('progChSanea',san.map(function(x){return x[0]}),san.map(function(x){return x[1]}),['#5c8a3a','#cfeaf0','#dba017','#c44536']);
+}
+
+function aplicarFiltrosPrograma(id){
+  const p = programas[id];
+  p.filtros = {
+    popMin: document.getElementById('fPopMin').value,
+    popMax: document.getElementById('fPopMax').value,
+    aguaOn: document.getElementById('fAguaOn').checked,
+    aguaMin: document.getElementById('fAguaMin').value,
+    saneOn: document.getElementById('fSaneOn').checked,
+    saneMin: document.getElementById('fSaneMin').value,
+  };
+  guardarProgramas();
+  renderListaComunidadesPrograma(id);
+  pintarMapaPrograma(id);
+}
+
+function toggleSeleccionComunidad(id,k,val){
+  const p = programas[id];
+  if(val) p.seleccion[k] = true; else delete p.seleccion[k];
+  guardarProgramas();
+  const n = Object.keys(p.seleccion).filter(function(kk){return p.seleccion[kk];}).length;
+  const chipS = document.getElementById('chipSeleccionadas');
+  if(chipS) chipS.querySelector('.num').textContent = n;
+  renderListaComunidadesPrograma(id);
+  pintarMapaPrograma(id);
+}
+
+function seleccionarTodasFiltradas(id){
+  const p = programas[id];
+  const todas = comunidadesDelPrograma(p);
+  const filtradas = todas.filter(function(r){ return cumpleFiltros(r,p.filtros); });
+  filtradas.forEach(function(r){ p.seleccion[comKey(r)] = true; });
+  guardarProgramas();
+  renderListaComunidadesPrograma(id);
+  pintarMapaPrograma(id);
+  const n = Object.keys(p.seleccion).filter(function(k){return p.seleccion[k];}).length;
+  const chipS = document.getElementById('chipSeleccionadas');
+  if(chipS) chipS.querySelector('.num').textContent = n;
+}
+function deseleccionarTodas(id){
+  programas[id].seleccion = {};
+  guardarProgramas();
+  renderListaComunidadesPrograma(id);
+  pintarMapaPrograma(id);
+  const chipS = document.getElementById('chipSeleccionadas');
+  if(chipS) chipS.querySelector('.num').textContent = '0';
+}
+
+
+// ───────── ETAPA 3: COMENTARIOS Y FOTOS ─────────
+function guardarComentarioComunidad(id,k,val){
+  programas[id].notas[k].comentario = val;
+  guardarProgramas();
+}
+
+// ════════════════ EXPORTAR PDF DEL PROGRAMA ════════════════
+async function exportarProgramaPDF(id){
+  const p = programas[id];
+  const seleccionadas = comunidadesDelPrograma(p).filter(function(r){ return p.seleccion[comKey(r)]; });
+  if(!seleccionadas.length) return;
+  const btn = document.querySelector('.btn-export-prog');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Generando…'; }
+  try{
+    const jsPDF = window.jspdf.jsPDF;
+    const pdf = new jsPDF('p','mm','a4');
+    const pageW=210, marginL=16, marginR=16, contW=pageW-marginL-marginR;
+    let y=18;
+    const colInk=[19,32,28], colMuted=[112,122,115], colAgua=[31,122,140], colAguaD=[21,94,109];
+    function checkSalto(extra){ if(y+extra>280){ pdf.addPage(); y=18; } }
+
+    pdf.setFillColor.apply(pdf,colAgua);
+    pdf.rect(0,0,pageW,50,'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(9); pdf.setFont(undefined,'bold');
+    pdf.text('REPORTE DE PROGRAMA · CENSO DE COMUNIDADES',marginL,14);
+    pdf.setFontSize(20);
+    pdf.text(p.nombre||'Programa sin nombre',marginL,27);
+    pdf.setFontSize(9.5); pdf.setFont(undefined,'normal');
+    const fecha = new Date(p.creado).toLocaleDateString('es-BO',{year:'numeric',month:'long',day:'numeric'});
+    const nMunNombres = p.municipios.map(function(m){return m.mun;}).join(', ');
+    pdf.text('Creado el '+fecha+' · '+seleccionadas.length+' comunidad(es) en '+p.municipios.length+' municipio(s)',marginL,36);
+    const lineasMun = pdf.splitTextToSize('Municipios: '+nMunNombres, contW);
+    pdf.text(lineasMun, marginL, 43);
+    y = 55;
+
+    for(let mi=0; mi<seleccionadas.length; mi++){
+      const r = seleccionadas[mi];
+      const k = comKey(r);
+      const nota = p.notas[k] || {comentario:'',fotos:[]};
+      checkSalto(20);
+      pdf.setFontSize(12.5); pdf.setFont(undefined,'bold');
+      pdf.setTextColor.apply(pdf,colAguaD);
+      pdf.text((mi+1)+'. '+r.com,marginL,y);
+      y+=5;
+      pdf.setDrawColor.apply(pdf,colAgua); pdf.setLineWidth(0.5);
+      pdf.line(marginL,y,marginL+contW,y); pdf.setLineWidth(0.2);
+      y+=7;
+
+      pdf.setFontSize(8); pdf.setFont(undefined,'normal'); pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text(r.mun+', '+r.prov+' · '+r.dep+' · '+r.tipo,marginL,y); y+=6;
+
+      // Mini-mapa de ubicación junto a los indicadores (a la derecha)
+      let yTextoInicio = y;
+      const mapW2=28, mapH2=32;
+      if(r.lat && r.lon){
+        try{
+          const mapaImg2 = await generarImagenMapaComunidad(r);
+          if(mapaImg2){
+            checkSalto(mapH2+2);
+            pdf.addImage(mapaImg2,'PNG',marginL+contW-mapW2,y-3,mapW2,mapH2);
+            pdf.setDrawColor.apply(pdf,colMuted);
+            pdf.rect(marginL+contW-mapW2,y-3,mapW2,mapH2);
+          }
+        }catch(e){}
+      }
+
+      pdf.setFontSize(8.3); pdf.setTextColor.apply(pdf,colInk);
+      const aguaTot=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+      const sanTot=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+      const anchoTexto = contW - mapW2 - 4;
+      pdf.text('Población: '+(r.pT||0).toLocaleString()+'\nViviendas: '+(r.vT||0).toLocaleString()+
+        '\nAgua (cañería+pileta): '+(aguaTot?Math.round(((r.aCan||0)+(r.aPil||0))/aguaTot*100):0)+'%'+
+        '\nSin saneamiento: '+(sanTot?Math.round((r.snNo||0)/sanTot*100):0)+'%', marginL, y, {maxWidth:anchoTexto, lineHeightFactor:1.5});
+      y = Math.max(y+18, yTextoInicio + mapH2);
+      y += 4;
+
+      if(nota.comentario && nota.comentario.trim()){
+        pdf.setFont(undefined,'bold'); pdf.setFontSize(8.3);
+        pdf.text('Comentarios:',marginL,y); y+=5;
+        pdf.setFont(undefined,'normal');
+        const lineas = pdf.splitTextToSize(nota.comentario, contW);
+        checkSalto(lineas.length*4.2);
+        pdf.text(lineas, marginL, y);
+        y += lineas.length*4.2 + 4;
+      }
+
+      if(nota.fotos && nota.fotos.length){
+        pdf.setFont(undefined,'bold'); pdf.setFontSize(8.3);
+        pdf.text('Fotografías ('+nota.fotos.length+'):',marginL,y); y+=5;
+        const fotoW=55, fotoH=42, gap=6; let x=marginL;
+        for(let fi=0; fi<nota.fotos.length; fi++){
+          checkSalto(fotoH+6);
+          if(x+fotoW>marginL+contW){ x=marginL; y+=fotoH+gap; checkSalto(fotoH+6); }
+          try{ pdf.addImage(nota.fotos[fi],'JPEG',x,y,fotoW,fotoH); }catch(e){}
+          x+=fotoW+gap;
+        }
+        y+=fotoH+10;
+      }
+      y+=4;
+    }
+
+    pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,colMuted);
+    const totalPag = pdf.internal.getNumberOfPages();
+    for(let pg=1; pg<=totalPag; pg++){
+      pdf.setPage(pg);
+      pdf.text('Fuente: Censo INE Bolivia',marginL,291);
+      pdf.text('Pág. '+pg+'/'+totalPag,pageW-marginR,291,{align:'right'});
+    }
+    pdf.save((p.nombre||'programa').replace(/[^a-zA-Z0-9]/g,'_')+'_REPORTE.pdf');
+  }catch(e){ alert('Error generando el reporte: '+e.message); }
+  if(btn){ btn.disabled=false; btn.textContent='📄 Exportar reporte del programa'; }
+}
+
+
+// ════════════════ MAPA ESTÁTICO DE BOLIVIA (para PDFs) ════════════════
+// Contorno simplificado de Bolivia en coordenadas geográficas (lon,lat),
+// usado para dibujar un mapa de referencia con la ubicación marcada.
+const BOLIVIA_CONTORNO = [
+  [-62.8465,-22.035],
+  [-63.9868,-21.9936],
+  [-64.377,-22.7981],
+  [-64.9649,-22.0759],
+  [-66.2733,-21.8323],
+  [-67.1067,-22.7359],
+  [-67.8282,-22.8729],
+  [-68.2199,-21.4943],
+  [-68.7572,-20.3727],
+  [-68.4422,-19.4051],
+  [-68.9668,-18.9817],
+  [-69.1002,-18.2601],
+  [-69.5904,-17.58],
+  [-68.9596,-16.5007],
+  [-69.3898,-15.6601],
+  [-69.1603,-15.324],
+  [-69.3395,-14.9532],
+  [-68.9489,-14.4536],
+  [-68.9292,-13.6027],
+  [-68.8801,-12.8997],
+  [-68.6651,-12.5613],
+  [-69.5297,-10.9517],
+  [-68.7862,-11.0364],
+  [-68.2713,-11.0145],
+  [-68.0482,-10.7121],
+  [-67.1738,-10.3068],
+  [-66.6469,-9.9313],
+  [-65.3384,-9.762],
+  [-65.4448,-10.5115],
+  [-65.3219,-10.8959],
+  [-65.4023,-11.5663],
+  [-64.3164,-12.462],
+  [-63.1965,-12.627],
+  [-62.8031,-13.0007],
+  [-62.1271,-13.1988],
+  [-61.7132,-13.4892],
+  [-61.0841,-13.4794],
+  [-60.5033,-13.776],
+  [-60.4592,-14.354],
+  [-60.2643,-14.646],
+  [-60.2511,-15.0772],
+  [-60.543,-15.0939],
+  [-60.1584,-16.2583],
+  [-58.2412,-16.2996],
+  [-58.3881,-16.8771],
+  [-58.2808,-17.2717],
+  [-57.7346,-17.5525],
+  [-57.4984,-18.1742],
+  [-57.676,-18.9618],
+  [-57.95,-19.4],
+  [-57.8538,-19.97],
+  [-58.1664,-20.1767],
+  [-58.1835,-19.8684],
+  [-59.115,-19.3569],
+  [-60.0436,-19.3427],
+  [-61.7863,-19.6337],
+  [-62.266,-20.5137],
+  [-62.2912,-21.0516],
+  [-62.6851,-22.249],
+  [-62.8465,-22.035]
+];
+const BOL_LON_MIN=-70.1, BOL_LON_MAX=-57.0, BOL_LAT_MIN=-23.3, BOL_LAT_MAX=-9.3;
+
+// Proyección con corrección por latitud (cos del centro de Bolivia ~-16.5°)
+// para que el mapa no se vea estirado horizontalmente, y centrado dentro del
+// rectángulo disponible manteniendo la proporción real del país.
+const BOL_LAT_CENTRO = (BOL_LAT_MIN+BOL_LAT_MAX)/2;
+const BOL_COS_LAT = Math.cos(BOL_LAT_CENTRO * Math.PI/180);
+function proyectarPunto(lon, lat, w, h, pad){
+  const anchoGeo = (BOL_LON_MAX-BOL_LON_MIN) * BOL_COS_LAT;
+  const altoGeo = (BOL_LAT_MAX-BOL_LAT_MIN);
+  const dispW = w-2*pad, dispH = h-2*pad;
+  // Escala uniforme: usar la dimensión más restrictiva para no deformar
+  const escala = Math.min(dispW/anchoGeo, dispH/altoGeo);
+  const anchoFinal = anchoGeo*escala, altoFinal = altoGeo*escala;
+  const offX = pad + (dispW-anchoFinal)/2;
+  const offY = pad + (dispH-altoFinal)/2;
+  const x = offX + (lon-BOL_LON_MIN)*BOL_COS_LAT*escala;
+  const y = offY + (BOL_LAT_MAX-lat)*escala;
+  return [x,y];
+}
+
+function generarSVGMapaBolivia(lon, lat, nombrePunto, opciones){
+  opciones = opciones || {};
+  const w = opciones.w || 300, h = opciones.h || 340, pad = 14;
+  const puntosContorno = BOLIVIA_CONTORNO.map(function(c){
+    const p = proyectarPunto(c[0], c[1], w, h, pad);
+    return p[0].toFixed(1)+','+p[1].toFixed(1);
+  }).join(' ');
+
+  let pinSvg = '';
+  if(lon && lat){
+    const p = proyectarPunto(lon, lat, w, h, pad);
+    pinSvg =
+      '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="9" fill="#c44536" opacity="0.25"/>'+
+      '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="4.5" fill="#c44536" stroke="#fff" stroke-width="1.5"/>';
+  }
+
+  // Marcas de las 4 ciudades principales como referencia visual (no dependen de DATOS)
+  const refs = [
+    {n:'La Paz', lon:-68.15, lat:-16.50},
+    {n:'Santa Cruz', lon:-63.18, lat:-17.78},
+    {n:'Cochabamba', lon:-66.16, lat:-17.39},
+    {n:'Sucre', lon:-65.26, lat:-19.04},
+  ];
+  let refsSvg = refs.map(function(r){
+    const p = proyectarPunto(r.lon, r.lat, w, h, pad);
+    return '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="1.6" fill="#9a9486"/>'+
+      '<text x="'+(p[0]+3)+'" y="'+(p[1]+2.5)+'" font-size="6" fill="#8a8478" font-family="Arial">'+r.n+'</text>';
+  }).join('');
+
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+
+    '<rect width="'+w+'" height="'+h+'" fill="#eef6f8"/>'+
+    '<polygon points="'+puntosContorno+'" fill="#dceef0" stroke="#1f7a8c" stroke-width="1.6"/>'+
+    refsSvg + pinSvg +
+    '</svg>';
+}
+
+function svgToDataURL(svgString, w, h){
+  // Convertir SVG a PNG dataURL via canvas, para insertarlo en jsPDF (que no soporta SVG directo)
+  return new Promise(function(resolve){
+    const img = new Image();
+    const svgBlob = new Blob([svgString], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+    img.onload = function(){
+      const canvas = document.createElement('canvas');
+      canvas.width = w*2; canvas.height = h*2; // escala 2x para nitidez
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function generarImagenMapaComunidad(r){
+  if(!r.lat || !r.lon) return null;
+  const svg = generarSVGMapaBolivia(r.lon, r.lat, r.com, {w:300,h:340});
+  return await svgToDataURL(svg, 300, 340);
+}
+
+// ════════════════ MAPA GENERAL CON VARIOS PUNTOS (para reporte estadístico) ════════════════
+function generarSVGMapaConjunto(comunidades, w, h){
+  const pad = 14;
+  const puntosContorno = BOLIVIA_CONTORNO.map(function(c){
+    const p = proyectarPunto(c[0], c[1], w, h, pad);
+    return p[0].toFixed(1)+','+p[1].toFixed(1);
+  }).join(' ');
+  const refs = [
+    {n:'La Paz', lon:-68.15, lat:-16.50},{n:'Santa Cruz', lon:-63.18, lat:-17.78},
+    {n:'Cochabamba', lon:-66.16, lat:-17.39},{n:'Sucre', lon:-65.26, lat:-19.04},
+  ];
+  let refsSvg = refs.map(function(r){
+    const p = proyectarPunto(r.lon, r.lat, w, h, pad);
+    return '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="1.6" fill="#9a9486"/>'+
+      '<text x="'+(p[0]+3)+'" y="'+(p[1]+2.5)+'" font-size="6" fill="#8a8478" font-family="Arial">'+r.n+'</text>';
+  }).join('');
+  let puntosSvg = '';
+  comunidades.forEach(function(r){
+    if(!r.lat || !r.lon) return;
+    const p = proyectarPunto(r.lon, r.lat, w, h, pad);
+    puntosSvg += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="#1f7a8c" opacity="0.85" stroke="#fff" stroke-width="0.8"/>';
+  });
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+
+    '<rect width="'+w+'" height="'+h+'" fill="#eef6f8"/>'+
+    '<polygon points="'+puntosContorno+'" fill="#dceef0" stroke="#1f7a8c" stroke-width="1.6"/>'+
+    refsSvg + puntosSvg +
+    '</svg>';
+}
+async function generarImagenMapaConjunto(comunidades, w, h){
+  const svg = generarSVGMapaConjunto(comunidades, w, h);
+  return await svgToDataURL(svg, w, h);
+}
+
+// ════════════════ REPORTE ESTADÍSTICO DEL CONJUNTO FILTRADO ════════════════
+async function exportarEstadisticasPrograma(id){
+  const p = programas[id];
+  const todas = comunidadesDelPrograma(p);
+  const filtradas = todas.filter(function(r){ return cumpleFiltros(r,p.filtros); });
+  if(!filtradas.length) return;
+
+  const btn = document.getElementById('btnExportEstadisticas');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Generando…'; }
+  try{
+    const jsPDF = window.jspdf.jsPDF;
+    const pdf = new jsPDF('p','mm','a4');
+    const pageW=210, marginL=16, marginR=16, contW=pageW-marginL-marginR;
+    let y=18;
+    const colInk=[19,32,28], colMuted=[112,122,115], colAgua=[31,122,140], colAguaD=[21,94,109], colLine=[227,225,212];
+
+    function checkSalto(extra){ if(y+extra>280){ pdf.addPage(); y=18; dibujarPiePag(); } }
+    function dibujarPiePag(){
+      pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text('Fuente: Censo INE Bolivia',marginL,291);
+      pdf.text('Pág. '+pdf.internal.getNumberOfPages(),pageW-marginR,291,{align:'right'});
+    }
+
+    // ── Portada ──
+    pdf.setFillColor.apply(pdf,colAgua);
+    pdf.rect(0,0,pageW,46,'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(9); pdf.setFont(undefined,'bold');
+    pdf.text('REPORTE ESTADÍSTICO · CENSO DE COMUNIDADES',marginL,13);
+    pdf.setFontSize(19);
+    pdf.text(p.nombre||'Programa sin nombre',marginL,25);
+    pdf.setFontSize(9.5); pdf.setFont(undefined,'normal');
+    const fecha = new Date().toLocaleDateString('es-BO',{year:'numeric',month:'long',day:'numeric'});
+    const nMunNombres = p.municipios.map(function(m){return m.mun;}).join(', ');
+    pdf.text('Emitido el '+fecha+' · '+filtradas.length+' comunidad(es) que cumplen los filtros aplicados',marginL,33);
+    const lineasMun = pdf.splitTextToSize('Municipios incluidos: '+nMunNombres, contW);
+    pdf.text(lineasMun, marginL, 40);
+    y = 54;
+
+    // ── Filtros aplicados ──
+    pdf.setTextColor.apply(pdf,colInk);
+    pdf.setFontSize(8.5); pdf.setFont(undefined,'bold');
+    pdf.text('Criterios de filtrado utilizados:',marginL,y); y+=5.5;
+    pdf.setFont(undefined,'normal'); pdf.setFontSize(8);
+    const f = p.filtros;
+    const criterios = [];
+    if(f.popMin!=='') criterios.push('Población mínima: '+f.popMin);
+    if(f.popMax!=='') criterios.push('Población máxima: '+f.popMax);
+    if(f.aguaOn && f.aguaMin!=='') criterios.push('Cobertura de agua potable menor a '+f.aguaMin+'%');
+    if(f.saneOn && f.saneMin!=='') criterios.push('Comunidades sin saneamiento básico mayor a '+f.saneMin+'%');
+    if(criterios.length===0) criterios.push('Sin filtros adicionales (todas las comunidades de los municipios elegidos)');
+    criterios.forEach(function(c){ pdf.text('•  '+c, marginL+2, y); y+=4.5; });
+    y += 5;
+
+    // ── Mapa general con todos los puntos filtrados ──
+    try{
+      const mapW=80, mapH=92;
+      checkSalto(mapH+12);
+      pdf.setFontSize(8.5); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colAguaD);
+      pdf.text('UBICACIÓN DE LAS COMUNIDADES FILTRADAS',marginL,y);
+      const mapaImg = await generarImagenMapaConjunto(filtradas, mapW, mapH);
+      if(mapaImg){
+        pdf.addImage(mapaImg,'PNG',marginL,y+3,mapW,mapH);
+        pdf.setDrawColor.apply(pdf,colLine);
+        pdf.rect(marginL,y+3,mapW,mapH);
+      }
+      // KPIs principales a la derecha del mapa
+      const xKpi = marginL+mapW+8;
+      let yKpi = y+8;
+      const nPob = filtradas.reduce(function(s,r){return s+(r.pT||0);},0);
+      const nViv = filtradas.reduce(function(s,r){return s+(r.vT||0);},0);
+      const nDisp = filtradas.filter(function(r){return r.tipo==='Dispersa';}).length;
+      const nAman = filtradas.filter(function(r){return r.tipo==='Amanzanada';}).length;
+      const kpis = [
+        ['Comunidades filtradas', filtradas.length],
+        ['Población total', nPob],
+        ['Viviendas totales', nViv],
+        ['Comunidades dispersas', nDisp],
+        ['Comunidades amanzanadas', nAman],
+      ];
+      kpis.forEach(function(kp){
+        pdf.setFontSize(13); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colAgua);
+        pdf.text(kp[1].toLocaleString(), xKpi, yKpi);
+        pdf.setFontSize(7.2); pdf.setFont(undefined,'normal'); pdf.setTextColor.apply(pdf,colMuted);
+        pdf.text(kp[0], xKpi, yKpi+4.5);
+        yKpi += 15;
+      });
+      y += mapH + 14;
+    }catch(e){ /* continuar sin mapa si falla */ }
+
+    pdf.setTextColor.apply(pdf,colInk);
+
+    function tituloSeccion(num,texto){
+      checkSalto(14);
+      pdf.setFontSize(11.5); pdf.setFont(undefined,'bold');
+      pdf.setTextColor.apply(pdf,colAguaD);
+      pdf.text(num+'. '+texto,marginL,y);
+      y += 2;
+      pdf.setDrawColor.apply(pdf,colAgua); pdf.setLineWidth(0.6);
+      pdf.line(marginL,y,marginL+contW,y); pdf.setLineWidth(0.2);
+      y += 6;
+      pdf.setFont(undefined,'normal'); pdf.setTextColor.apply(pdf,colInk);
+    }
+    function tabla(filas, colLabel, colVal){
+      const rowH=6.5;
+      checkSalto(rowH*filas.length+4);
+      pdf.setFillColor(243,242,234);
+      pdf.rect(marginL,y-4.5,contW,rowH,'F');
+      pdf.setFontSize(8); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text(colLabel,marginL+2,y); pdf.text(colVal,marginL+contW-2,y,{align:'right'});
+      y+=rowH; pdf.setFont(undefined,'normal');
+      filas.forEach(function(fl,i){
+        checkSalto(rowH);
+        if(i%2===1){ pdf.setFillColor(250,249,245); pdf.rect(marginL,y-4.5,contW,rowH,'F'); }
+        pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,colInk);
+        pdf.text(String(fl[0]),marginL+2,y);
+        pdf.setFont(undefined,'bold');
+        const val = typeof fl[1]==='number' ? fl[1].toLocaleString('es-BO') : (fl[1]||'Sin dato');
+        pdf.text(String(val),marginL+contW-2,y,{align:'right'});
+        pdf.setFont(undefined,'normal');
+        y+=rowH;
+      });
+      y+=5;
+    }
+    function sumaF(campo){ return filtradas.reduce(function(s,r){ return s+(typeof r[campo]==='number'?r[campo]:0); },0); }
+
+    // ── Estadísticas agregadas del conjunto ──
+    const pT=sumaF('pT'), pH=sumaF('pH'), pM=sumaF('pM');
+    tituloSeccion('1','Población (agregado del conjunto)');
+    tabla([
+      ['Población total',pT],['Hombres',pH+' ('+(pT?Math.round(pH/pT*100):0)+'%)'],
+      ['Mujeres',pM+' ('+(pT?Math.round(pM/pT*100):0)+'%)'],
+      ['0 a 19 años',sumaF('p019')],['20 a 39 años',sumaF('p2039')],
+      ['40 a 59 años',sumaF('p4059')],['60 años o más',sumaF('p60')],
+    ],'INDICADOR','TOTAL');
+
+    tituloSeccion('2','Vivienda');
+    tabla([['Total de viviendas',sumaF('vT')],['Viviendas ocupadas',sumaF('vOcup')],['Viviendas propias',sumaF('vProp')]],'INDICADOR','TOTAL');
+
+    const aguaTot = sumaF('aCan')+sumaF('aPil')+sumaF('aPozo')+sumaF('aRio')+sumaF('aMan')+sumaF('aLlu');
+    tituloSeccion('3','Fuente de agua potable');
+    tabla([
+      ['Cañería de red',sumaF('aCan')],['Pileta pública',sumaF('aPil')],['Pozo con bomba',sumaF('aPozo')],
+      ['Río, acequia o vertiente',sumaF('aRio')],['Manantial',sumaF('aMan')],['Agua de lluvia',sumaF('aLlu')],
+      ['% con cobertura adecuada (cañería+pileta)', aguaTot? Math.round((sumaF('aCan')+sumaF('aPil'))/aguaTot*100)+'%' : 'Sin dato'],
+    ],'FUENTE','VIVIENDAS');
+
+    const sanTot = sumaF('snAlc')+sumaF('snCam')+sumaF('snPozo')+sumaF('snNo');
+    tituloSeccion('4','Saneamiento básico');
+    tabla([
+      ['Alcantarillado',sumaF('snAlc')],['Cámara séptica',sumaF('snCam')],['Pozo ciego',sumaF('snPozo')],
+      ['No tiene',sumaF('snNo')],
+      ['% sin saneamiento', sanTot? Math.round(sumaF('snNo')/sanTot*100)+'%' : 'Sin dato'],
+    ],'TIPO','VIVIENDAS');
+
+    tituloSeccion('5','Energía eléctrica');
+    tabla([['Servicio público',sumaF('elPub')],['Sin electricidad',sumaF('elNo')]],'TIPO','VIVIENDAS');
+
+    tituloSeccion('6','Educación');
+    tabla([['Sin instrucción',sumaF('eNin')],['Primaria',sumaF('ePri')],['Secundaria',sumaF('eSec')],['Superior',sumaF('eSup')]],'NIVEL','PERSONAS');
+
+    tituloSeccion('7','Salud');
+    tabla([['Atención SUS',sumaF('sSUS')],['Caja de salud',sumaF('sCaja')],['Seguro privado',sumaF('sPriv')],['Sin seguro',sumaF('sNin')]],'COBERTURA','PERSONAS');
+
+    tituloSeccion('8','Tecnología y comunicación');
+    tabla([['Teléfono celular',sumaF('tCel')],['Internet',sumaF('tInt')],['Televisión',sumaF('tTV')]],'INDICADOR','PERSONAS');
+
+    // ── Listado de comunidades incluidas ──
+    tituloSeccion('9','Listado de comunidades incluidas en este reporte');
+    const filasListado = filtradas.map(function(r){
+      return [r.com+' ('+r.mun+')', (r.pT||0).toLocaleString()+' hab.'];
+    });
+    tabla(filasListado, 'COMUNIDAD', 'POBLACIÓN');
+
+    dibujarPiePag();
+    pdf.save((p.nombre||'programa').replace(/[^a-zA-Z0-9]/g,'_')+'_ESTADISTICAS.pdf');
+  }catch(e){ alert('Error generando el reporte estadístico: '+e.message); }
+  if(btn){ btn.disabled=false; btn.textContent='📊 Reporte estadístico del conjunto filtrado'; }
+}
+
+
+// ════════════════ REPORTE ESTADÍSTICO DESDE EL FILTRO PRINCIPAL (Mapa/Lista) ════════════════
+async function exportarEstadisticasFiltroPrincipal(btnEl){
+  const base = filtrados.length ? filtrados : DATOS;
+  if(!base.length) return;
+
+  const btn = btnEl;
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Generando…'; }
+  try{
+    const jsPDF = window.jspdf.jsPDF;
+    const pdf = new jsPDF('p','mm','a4');
+    const pageW=210, marginL=16, marginR=16, contW=pageW-marginL-marginR;
+    let y=18;
+    const colInk=[19,32,28], colMuted=[112,122,115], colAgua=[31,122,140], colAguaD=[21,94,109], colLine=[227,225,212];
+
+    function checkSalto(extra){ if(y+extra>280){ pdf.addPage(); y=18; dibujarPiePag(); } }
+    function dibujarPiePag(){
+      pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text('Fuente: Censo INE Bolivia',marginL,291);
+      pdf.text('Pág. '+pdf.internal.getNumberOfPages(),pageW-marginR,291,{align:'right'});
+    }
+
+    // Describir el filtro activo en lenguaje natural
+    const dep = document.getElementById('fDep').value;
+    const prov = document.getElementById('fProv').value;
+    const mun = document.getElementById('fMun').value;
+    const q = document.getElementById('fBuscar').value.trim();
+    let descFiltro = [];
+    if(dep) descFiltro.push('Departamento: '+dep);
+    if(prov) descFiltro.push('Provincia: '+prov);
+    if(mun) descFiltro.push('Municipio: '+mun);
+    if(q) descFiltro.push('Búsqueda: "'+q+'"');
+    const tituloReporte = mun || prov || dep || 'Bolivia (todas las comunidades)';
+
+    // ── Portada ──
+    pdf.setFillColor.apply(pdf,colAgua);
+    pdf.rect(0,0,pageW,46,'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(9); pdf.setFont(undefined,'bold');
+    pdf.text('REPORTE ESTADÍSTICO · CENSO DE COMUNIDADES',marginL,13);
+    pdf.setFontSize(18);
+    pdf.text(tituloReporte,marginL,25);
+    pdf.setFontSize(9.5); pdf.setFont(undefined,'normal');
+    const fecha = new Date().toLocaleDateString('es-BO',{year:'numeric',month:'long',day:'numeric'});
+    pdf.text('Emitido el '+fecha+' · '+base.length.toLocaleString()+' comunidad(es)',marginL,33);
+    const lineasFiltro = pdf.splitTextToSize(descFiltro.length?descFiltro.join(' · '):'Sin filtros (toda Bolivia)', contW);
+    pdf.text(lineasFiltro, marginL, 40);
+    y = 54;
+
+    // ── Mapa general con todos los puntos filtrados ──
+    try{
+      const mapW=80, mapH=92;
+      checkSalto(mapH+12);
+      pdf.setFontSize(8.5); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colAguaD);
+      pdf.text('UBICACIÓN DE LAS COMUNIDADES',marginL,y);
+      const mapaImg = await generarImagenMapaConjunto(base, mapW, mapH);
+      if(mapaImg){
+        pdf.addImage(mapaImg,'PNG',marginL,y+3,mapW,mapH);
+        pdf.setDrawColor.apply(pdf,colLine);
+        pdf.rect(marginL,y+3,mapW,mapH);
+      }
+      const xKpi = marginL+mapW+8;
+      let yKpi = y+8;
+      const nPob = base.reduce(function(s,r){return s+(r.pT||0);},0);
+      const nViv = base.reduce(function(s,r){return s+(r.vT||0);},0);
+      const nDisp = base.filter(function(r){return r.tipo==='Dispersa';}).length;
+      const nAman = base.filter(function(r){return r.tipo==='Amanzanada';}).length;
+      const kpis = [
+        ['Comunidades', base.length],['Población total', nPob],['Viviendas totales', nViv],
+        ['Comunidades dispersas', nDisp],['Comunidades amanzanadas', nAman],
+      ];
+      kpis.forEach(function(kp){
+        pdf.setFontSize(13); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colAgua);
+        pdf.text(kp[1].toLocaleString(), xKpi, yKpi);
+        pdf.setFontSize(7.2); pdf.setFont(undefined,'normal'); pdf.setTextColor.apply(pdf,colMuted);
+        pdf.text(kp[0], xKpi, yKpi+4.5);
+        yKpi += 15;
+      });
+      y += mapH + 14;
+    }catch(e){}
+
+    pdf.setTextColor.apply(pdf,colInk);
+    function tituloSeccion(num,texto){
+      checkSalto(14);
+      pdf.setFontSize(11.5); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colAguaD);
+      pdf.text(num+'. '+texto,marginL,y); y+=2;
+      pdf.setDrawColor.apply(pdf,colAgua); pdf.setLineWidth(0.6);
+      pdf.line(marginL,y,marginL+contW,y); pdf.setLineWidth(0.2); y+=6;
+      pdf.setFont(undefined,'normal'); pdf.setTextColor.apply(pdf,colInk);
+    }
+    function tabla(filas, colLabel, colVal){
+      const rowH=6.5;
+      checkSalto(rowH*filas.length+4);
+      pdf.setFillColor(243,242,234); pdf.rect(marginL,y-4.5,contW,rowH,'F');
+      pdf.setFontSize(8); pdf.setFont(undefined,'bold'); pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text(colLabel,marginL+2,y); pdf.text(colVal,marginL+contW-2,y,{align:'right'});
+      y+=rowH; pdf.setFont(undefined,'normal');
+      filas.forEach(function(fl,i){
+        checkSalto(rowH);
+        if(i%2===1){ pdf.setFillColor(250,249,245); pdf.rect(marginL,y-4.5,contW,rowH,'F'); }
+        pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,colInk);
+        pdf.text(String(fl[0]),marginL+2,y);
+        pdf.setFont(undefined,'bold');
+        const val = typeof fl[1]==='number' ? fl[1].toLocaleString('es-BO') : (fl[1]||'Sin dato');
+        pdf.text(String(val),marginL+contW-2,y,{align:'right'});
+        pdf.setFont(undefined,'normal');
+        y+=rowH;
+      });
+      y+=5;
+    }
+    function sumaB(campo){ return base.reduce(function(s,r){ return s+(typeof r[campo]==='number'?r[campo]:0); },0); }
+
+    const pT=sumaB('pT'), pH=sumaB('pH'), pM=sumaB('pM');
+    tituloSeccion('1','Población (agregado del conjunto)');
+    tabla([
+      ['Población total',pT],['Hombres',pH+' ('+(pT?Math.round(pH/pT*100):0)+'%)'],
+      ['Mujeres',pM+' ('+(pT?Math.round(pM/pT*100):0)+'%)'],
+      ['0 a 19 años',sumaB('p019')],['20 a 39 años',sumaB('p2039')],
+      ['40 a 59 años',sumaB('p4059')],['60 años o más',sumaB('p60')],
+    ],'INDICADOR','TOTAL');
+
+    tituloSeccion('2','Vivienda');
+    tabla([['Total de viviendas',sumaB('vT')],['Viviendas ocupadas',sumaB('vOcup')],['Viviendas propias',sumaB('vProp')]],'INDICADOR','TOTAL');
+
+    const aguaTot = sumaB('aCan')+sumaB('aPil')+sumaB('aPozo')+sumaB('aRio')+sumaB('aMan')+sumaB('aLlu');
+    tituloSeccion('3','Fuente de agua potable');
+    tabla([
+      ['Cañería de red',sumaB('aCan')],['Pileta pública',sumaB('aPil')],['Pozo con bomba',sumaB('aPozo')],
+      ['Río, acequia o vertiente',sumaB('aRio')],['Manantial',sumaB('aMan')],['Agua de lluvia',sumaB('aLlu')],
+      ['% con cobertura adecuada (cañería+pileta)', aguaTot? Math.round((sumaB('aCan')+sumaB('aPil'))/aguaTot*100)+'%' : 'Sin dato'],
+    ],'FUENTE','VIVIENDAS');
+
+    const sanTot = sumaB('snAlc')+sumaB('snCam')+sumaB('snPozo')+sumaB('snNo');
+    tituloSeccion('4','Saneamiento básico');
+    tabla([
+      ['Alcantarillado',sumaB('snAlc')],['Cámara séptica',sumaB('snCam')],['Pozo ciego',sumaB('snPozo')],
+      ['No tiene',sumaB('snNo')],
+      ['% sin saneamiento', sanTot? Math.round(sumaB('snNo')/sanTot*100)+'%' : 'Sin dato'],
+    ],'TIPO','VIVIENDAS');
+
+    tituloSeccion('5','Energía eléctrica');
+    tabla([['Servicio público',sumaB('elPub')],['Sin electricidad',sumaB('elNo')]],'TIPO','VIVIENDAS');
+
+    tituloSeccion('6','Educación');
+    tabla([['Sin instrucción',sumaB('eNin')],['Primaria',sumaB('ePri')],['Secundaria',sumaB('eSec')],['Superior',sumaB('eSup')]],'NIVEL','PERSONAS');
+
+    tituloSeccion('7','Salud');
+    tabla([['Atención SUS',sumaB('sSUS')],['Caja de salud',sumaB('sCaja')],['Seguro privado',sumaB('sPriv')],['Sin seguro',sumaB('sNin')]],'COBERTURA','PERSONAS');
+
+    tituloSeccion('8','Tecnología y comunicación');
+    tabla([['Teléfono celular',sumaB('tCel')],['Internet',sumaB('tInt')],['Televisión',sumaB('tTV')]],'INDICADOR','PERSONAS');
+
+    // Listado solo si no son demasiadas (limitar a 200 para no generar un PDF gigante)
+    if(base.length <= 200){
+      tituloSeccion('9','Listado de comunidades incluidas');
+      const filasListado = base.map(function(r){ return [r.com+' ('+r.mun+')', (r.pT||0).toLocaleString()+' hab.']; });
+      tabla(filasListado, 'COMUNIDAD', 'POBLACIÓN');
+    } else {
+      checkSalto(10);
+      pdf.setFontSize(8); pdf.setFont(undefined,'italic'); pdf.setTextColor.apply(pdf,colMuted);
+      pdf.text('('+base.length.toLocaleString()+' comunidades — listado omitido por ser muy extenso; use filtros más específicos para incluirlo)', marginL, y);
+      pdf.setFont(undefined,'normal');
+      y+=8;
+    }
+
+    dibujarPiePag();
+    const nombreArchivo = (tituloReporte==='Bolivia (todas las comunidades)' ? 'Bolivia_Nacional' : tituloReporte).replace(/[^a-zA-Z0-9]/g,'_');
+    pdf.save(nombreArchivo+'_ESTADISTICAS.pdf');
+  }catch(e){ alert('Error generando el reporte: '+e.message); }
+  if(btn){ btn.disabled=false; btn.textContent='📊 Generar reporte estadístico de esta selección'; }
+}
+
+
+cargar();
+</script>
+
+<script>
+/* ================================================================
+   CensoBolivia — Features adicionales
+   Se cargan DESPUÉS del script principal, sin modificar el original
+   ================================================================ */
+(function(){
+'use strict';
+
+// ── Globals ──────────────────────────────────────────────────────
+var scatterInst=null, capaSat=null, capaHeat=null, miniMap=null;
+var medirOn=false, medirPtoA=null, medirLinea=null;
+var lazoOn=false, lazoRect=null, lazoPtoA=null;
+var radioWait=false, radioKm=10;
+var condsFAv=[{ind:'_agua',op:'<',val:50}];
+
+// ── Helpers ───────────────────────────────────────────────────────
+function cId(r){ return r.mun+'|||'+r.com; }
+function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function fmtM(n){ return n>=1e6?(n/1e6).toFixed(2)+' MM Bs':n>=1e3?(n/1e3).toFixed(0)+' K Bs':n.toLocaleString()+' Bs'; }
+function hv(a,b){
+  var R=6371,dL=(b[0]-a[0])*Math.PI/180,dN=(b[1]-a[1])*Math.PI/180;
+  var s=Math.sin(dL/2)*Math.sin(dL/2)+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dN/2)*Math.sin(dN/2);
+  return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
+}
+function calcScore(r){
+  var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+  var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+  var et=(r.elPub||0)+(r.elNo||0);
+  var pA=at?Math.round(((r.aCan||0)+(r.aPil||0))/at*100):0;
+  var pS=st?Math.round((r.snNo||0)/st*100):100;
+  var pE=et?Math.round((r.elPub||0)/et*100):0;
+  return Math.min(100,Math.round(((100-pA)*0.40+pS*0.35+(100-pE)*0.15)*((r.pT||0)<50?1.15:(r.pT||0)<200?1.0:0.88)));
+}
+function pctAgua(r){var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);return at?Math.round(((r.aCan||0)+(r.aPil||0))/at*100):0;}
+function pctSanea(r){var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);return st?Math.round((r.snNo||0)/st*100):100;}
+function pctElec(r){var et=(r.elPub||0)+(r.elNo||0);return et?Math.round((r.elPub||0)/et*100):0;}
+function semCls(v,inv){ return !inv?(v>=60?'v':v>=30?'n':'r'):(v<=25?'v':v<=60?'n':'r'); }
+function scorePill(sc){ var cl=sc>=60?'r':sc>=30?'n':'v'; return '<span style="padding:2px 8px;border-radius:7px;font-size:.66rem;font-weight:800;background:'+(cl==='r'?'#fde8e8':cl==='n'?'#fef3dc':'#e8f4e0')+';color:'+(cl==='r'?'#8a1a1a':cl==='n'?'#7a4f00':'#1a6a30')+'">'+sc+'/100</span>'; }
+
+// ── LS helpers ────────────────────────────────────────────────────
+function lsGet(k){ try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;} }
+function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+
+// ================================================================
+// CSS
+// ================================================================
+var style=document.createElement('style');
+style.textContent=`
+@media(prefers-color-scheme:dark){
+  :root{--ink:#ddd8c4;--paper:#181c19;--card:#1f2520;--line:#2a302c;
+    --agua:#3ab0c8;--agua-d:#2d95ac;--agua-l:#0d2f38;
+    --tierra:#d4845a;--verde:#7ab54e;--sol:#e8b930;--rojo:#e05a4a;--muted:#7a8a7e}
+  header{background:linear-gradient(135deg,#1a4d59,#0f3340)!important}
+  .campo select,.campo input{background:var(--card);color:var(--ink);border-color:var(--line)}
+  .leaflet-tile{filter:brightness(.82) saturate(.9)}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--ink)}
+}
+/* Botón cerrar GRANDE */
+.modal-close{width:54px!important;height:54px!important;font-size:1.4rem!important;
+  font-weight:800!important;box-shadow:0 2px 8px rgba(0,0,0,.15)!important;
+  -webkit-tap-highlight-color:transparent!important;touch-action:manipulation!important}
+.modal-close:active{transform:scale(.9)}
+.modal-handle-wrap{min-height:52px!important;padding:14px 0 5px!important}
+.modal-foot{flex-wrap:wrap!important;gap:6px!important;
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))!important}
+/* Dashboard */
+#vInicio{display:none;flex-direction:column;overflow-y:auto;
+  padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
+#vInicio.activa{display:flex}
+.d-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.d-kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;text-align:center}
+.d-kpi-v{font-size:1.5rem;font-weight:800;color:var(--agua);line-height:1}
+.d-kpi-l{font-size:.6rem;color:var(--muted);margin-top:4px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.d-sec{font-size:.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 7px}
+.d-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.d-btn{padding:11px 7px;border-radius:12px;border:1px solid var(--line);background:var(--card);
+  font-size:.72rem;font-weight:700;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent}
+.d-btn span:first-child{font-size:1.35rem}
+.d-item{display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--card);
+  border-radius:10px;border:1px solid var(--line);margin-bottom:6px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.d-ico{font-size:1rem;width:28px;text-align:center;flex:0 0 28px}
+.d-inf{flex:1;min-width:0}
+.d-nom{font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.d-sub{font-size:.68rem;color:var(--muted);margin-top:1px}
+/* Controles mapa */
+.xbtn{background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:3px}
+.mapa-btn{width:44px;height:44px;border-radius:50%;background:var(--card);border:1px solid var(--line);
+  box-shadow:0 2px 8px rgba(0,0,0,.1);display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.mapa-btn.on{background:var(--agua);color:#fff;border-color:var(--agua)}
+.mapa-bar{position:absolute;left:10px;right:10px;z-index:31;background:rgba(255,253,250,.96);
+  backdrop-filter:blur(6px);border-radius:10px;padding:8px 12px;box-shadow:var(--shadow);
+  font-size:.76rem;font-weight:600;color:var(--agua-d);display:none}
+.mapa-bar.vis{display:flex;align-items:center;gap:8px}
+.mapa-bar select{font-size:.78rem;padding:4px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink)}
+.ley{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.ley-i{display:flex;align-items:center;gap:3px;font-size:.63rem;color:var(--muted)}
+.ley-d{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+.fav-bdg{position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:var(--sol);
+  border-radius:50%;font-size:.48rem;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+/* Panel flotante */
+.pnl-overlay{position:fixed;inset:0;background:rgba(19,32,28,.55);z-index:850;display:none;
+  flex-direction:column;align-items:stretch;padding:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.pnl-overlay.activo{display:flex}
+.pnl-card{background:var(--paper);border-radius:16px;flex:1;display:flex;flex-direction:column;overflow:hidden;max-height:94vh}
+.pnl-head{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.pnl-body{flex:1;overflow-y:auto;padding:11px 13px;-webkit-overflow-scrolling:touch}
+/* Panel rápido */
+.pr-fondo{position:fixed;inset:0;background:rgba(19,32,28,.5);z-index:800;display:none;align-items:flex-end}
+.pr-fondo.activo{display:flex}
+.pr-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:70vh;display:flex;flex-direction:column}
+.pr-head{padding:10px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:.9rem}
+.pr-body{overflow-y:auto;flex:1;padding:10px 13px;-webkit-overflow-scrolling:touch}
+.pr-item{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.pr-item:last-child{border-bottom:none}
+/* Modo campo */
+.campo-ov{position:fixed;inset:0;z-index:960;background:var(--paper);display:none;flex-direction:column}
+.campo-ov.activo{display:flex}
+.campo-hdr{background:var(--agua);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 14px;
+  display:flex;align-items:flex-start;justify-content:space-between}
+.campo-nom{font-size:1.35rem;font-weight:800;line-height:1.2;flex:1;margin-right:8px}
+.campo-body{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:11px;padding:14px}
+.campo-sems{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.c-sem{border-radius:14px;padding:13px 6px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.c-sem.v{background:#e8f4e0}.c-sem.n{background:#fef3dc}.c-sem.r{background:#fde8e8}
+.c-sem-p{font-size:1.45rem;font-weight:900}
+.c-sem.v .c-sem-p{color:#2a6a18}.c-sem.n .c-sem-p{color:#7a4f00}.c-sem.r .c-sem-p{color:#8a1a1a}
+.c-sem-l{font-size:.57rem;font-weight:700;text-transform:uppercase;color:var(--muted);text-align:center}
+.campo-btns{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+.c-btn{padding:15px 8px;border-radius:14px;border:none;font-size:.84rem;font-weight:800;
+  display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.c-btn span:first-child{font-size:1.65rem}
+.c-btn-nota{background:var(--agua);color:#fff}.c-btn-fav{background:var(--card);border:1px solid var(--line);color:var(--ink)}
+.c-btn-pdf{background:var(--tierra);color:#fff}.c-btn-back{background:var(--line);color:var(--ink)}
+/* Notas */
+.notas-ov{position:fixed;inset:0;z-index:870;background:rgba(19,32,28,.5);display:none;align-items:flex-end}
+.notas-ov.activo{display:flex}
+.notas-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:80vh;
+  display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)}
+.notas-head{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.notas-body{flex:1;overflow-y:auto;padding:10px 13px;-webkit-overflow-scrolling:touch}
+.nota-g{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 11px;margin-bottom:6px}
+.nota-g-t{font-size:.81rem;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.nota-g-m{font-size:.61rem;color:var(--muted);margin-top:3px;display:flex;justify-content:space-between}
+.notas-new{padding:8px 13px;border-top:1px solid var(--line);display:flex;gap:7px;align-items:flex-end}
+.notas-new textarea{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:9px;
+  font-size:.8rem;resize:none;min-height:36px;font-family:inherit;background:var(--paper);color:var(--ink)}
+.notas-new button{padding:8px 13px;background:var(--agua);color:#fff;border:none;border-radius:9px;font-weight:800;font-size:.8rem}
+/* Calculadora */
+.calc-ov{position:fixed;inset:0;z-index:870;background:rgba(19,32,28,.5);display:none;align-items:flex-end}
+.calc-ov.activo{display:flex}
+.calc-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:80vh;
+  display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)}
+.calc-head{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.calc-body{flex:1;overflow-y:auto;padding:13px}
+.calc-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.calc-row label{flex:1;font-size:.77rem;font-weight:600;color:var(--ink)}
+.calc-row input{width:88px;padding:6px 7px;border:1px solid var(--line);border-radius:8px;font-size:.8rem;text-align:right;background:var(--card);color:var(--ink)}
+.calc-res{background:var(--agua-l);border-radius:11px;padding:12px;margin-top:8px}
+.calc-tot{font-size:1.25rem;font-weight:800;color:var(--agua-d)}
+/* Autocomplete */
+.ac-wrap{position:relative;flex:1}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 10px 10px;z-index:200;max-height:185px;overflow-y:auto;box-shadow:var(--shadow);display:none}
+.ac-list.vis{display:block}
+.ac-item{padding:8px 11px;font-size:.79rem;cursor:pointer;border-bottom:1px solid var(--line)}
+.ac-item:last-child{border-bottom:none}
+.ac-com{font-weight:600;color:var(--ink)}.ac-mun{font-size:.66rem;color:var(--muted)}
+/* Botones header */
+.hdr-btn{background:rgba(255,255,255,.2);border:none;border-radius:50%;width:34px;height:34px;
+  display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;position:relative;color:#fff;
+  -webkit-tap-highlight-color:transparent}
+.hdr-bdg{position:absolute;top:-3px;right:-3px;width:13px;height:13px;background:var(--sol);
+  border-radius:50%;font-size:.48rem;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+/* Mini-mapa */
+#miniMapW{height:162px;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px;display:none}
+/* CSV btn */
+.btn-csv{padding:5px 10px;border:1px solid var(--verde);border-radius:7px;font-size:.72rem;font-weight:700;color:var(--verde);background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent}
+/* Estado prog */
+.est-b{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:8px;font-size:.64rem;font-weight:700;cursor:pointer}
+.est-P{background:#fde8e8;color:#8a1a1a}.est-C{background:#fef3dc;color:#7a4f00}
+.est-D{background:#e8f4e0;color:#1a6a30}.est-X{background:#deeef2;color:#0d5a6e}
+/* Score */
+.sc-r{background:#fde8e8;color:#8a1a1a}.sc-n{background:#fef3dc;color:#7a4f00}.sc-v{background:#e8f4e0;color:#1a6a30}
+/* Print */
+@media print{
+  header,.tabs,.filtros,.modal-foot,#vMapa,#vInicio,#vProgramas,
+  .pr-fondo,.campo-ov,.notas-ov,.calc-ov,.pnl-overlay{display:none!important}
+  body,#vLista{background:#fff}
+  #vLista{display:block!important;padding:8px}
+}`;
+document.head.appendChild(style);
+
+// ================================================================
+// INYECTAR HTML
+// ================================================================
+function injectHTML(){
+  // 1. Tab Inicio
+  var tabMapa=document.getElementById('tabMapa');
+  if(tabMapa&&!document.getElementById('tabInicio')){
+    var ti=document.createElement('button');
+    ti.className='tab';ti.id='tabInicio';ti.textContent='🏠 Inicio';
+    ti.onclick=function(){cambiarVista('inicio');};
+    tabMapa.parentNode.insertBefore(ti,tabMapa);
+  }
+
+  // 2. Botones en header (notas + alertas)
+  var h1=document.querySelector('header h1');
+  if(h1&&!document.getElementById('btnNotas')){
+    var wrap=document.createElement('div');
+    wrap.style.cssText='display:flex;align-items:center;justify-content:space-between;width:100%';
+    var hBtns=document.createElement('div');hBtns.style='display:flex;gap:7px';
+    hBtns.innerHTML='<button class="hdr-btn" id="btnNotas" onclick="abrirNotas()" title="Notas">📒<span class="hdr-bdg" id="notasBdg" style="display:none">0</span></button>'
+      +'<button class="hdr-btn" id="btnAlertasHdr" onclick="abrirAlertas()" title="Alertas">🚩<span class="hdr-bdg" id="alertaBdg" style="background:var(--rojo);display:none">0</span></button>';
+    wrap.appendChild(h1.cloneNode(true));wrap.appendChild(hBtns);
+    h1.parentNode.replaceChild(wrap,h1);
+  }
+
+  // 3. Vista Inicio
+  if(!document.getElementById('vInicio')){
+    var vi=document.createElement('div');vi.id='vInicio';
+    vi.innerHTML=
+      '<div class="d-kpis" id="dKpis"></div>'+
+      '<div class="d-grid">'+
+        '<div class="d-btn" onclick="abrirScatter()"><span>📈</span><span>Scatter agua/sanea.</span></div>'+
+        '<div class="d-btn" onclick="abrirBrechas()"><span>📉</span><span>Brecha departamental</span></div>'+
+        '<div class="d-btn" onclick="abrirRanking()"><span>🏆</span><span>Ranking prioridad</span></div>'+
+        '<div class="d-btn" onclick="abrirCalc()"><span>💰</span><span>Calc. inversión</span></div>'+
+        '<div class="d-btn" onclick="exportGeoJSON()"><span>🌐</span><span>Export GeoJSON</span></div>'+
+        '<div class="d-btn" onclick="exportKML()"><span>🗺️</span><span>Export KML</span></div>'+
+      '</div>'+
+      '<div class="d-sec">Programas recientes</div><div id="dProgs"></div>'+
+      '<div class="d-sec">Fichas recientes</div><div id="dRecientes"></div>';
+    var vMapa=document.getElementById('vMapa');
+    vMapa.parentNode.insertBefore(vi,vMapa);
+  }
+
+  // 4. Controles mapa
+  var mapaEl=document.getElementById('mapaEl');
+  var vMapa=document.getElementById('vMapa');
+  if(mapaEl&&vMapa&&!document.getElementById('mapaColorBar')){
+    // Color bar
+    var cb=document.createElement('div');cb.className='mapa-bar';cb.id='mapaColorBar';
+    cb.style.cssText='top:54px;z-index:1001;position:absolute;left:10px;right:10px';
+    cb.innerHTML='<div style="display:flex;flex-direction:column;gap:5px;width:100%">'
+      +'<label style="font-size:.61rem;font-weight:700;color:var(--muted);text-transform:uppercase">Color por</label>'
+      +'<select id="colorMode" onchange="actualizarColorMapa()">'
+        +'<option value="tipo">Tipo (dispersa / amanzanada)</option>'
+        +'<option value="agua">% agua potable segura</option>'
+        +'<option value="sanea">% sin saneamiento</option>'
+        +'<option value="pob">Tamaño de población</option>'
+      +'</select>'
+      +'<div class="ley" id="mapaLey"></div></div>';
+    vMapa.appendChild(cb);
+    // Tool bar
+    var tb=document.createElement('div');tb.className='mapa-bar';tb.id='mapaToolBar';
+    tb.style.cssText='top:54px;z-index:1001;position:absolute;left:10px;right:10px';
+    tb.innerHTML='<span id="mapaToolTxt">—</span>'
+      +'<input type="number" id="radioKmInp" value="10" min="1" max="500" style="display:none;width:60px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;font-size:.77rem">'
+      +'<button id="radioOkBtn" onclick="confirmarRadio()" style="display:none;padding:3px 10px;background:var(--agua);color:#fff;border:none;border-radius:6px;font-size:.74rem">OK</button>'
+      +'<button onclick="cancelTool()" style="margin-left:auto;background:none;border:none;font-size:1rem;color:var(--muted);cursor:pointer">✕</button>';
+    vMapa.appendChild(tb);
+    // Botones flotantes
+    var mc=document.createElement('div');mc.style.cssText='position:absolute;bottom:14px;right:10px;z-index:1000;display:flex;flex-direction:column;gap:7px';
+    mc.innerHTML=
+      '<button class="mapa-btn" title="Mi ubicación" onclick="miUbicacion()" id="btnGps">📍</button>'+
+      '<button class="mapa-btn" title="Color" onclick="toggleColorBar()" id="btnColor">🎨</button>'+
+      '<div style="position:relative"><button class="mapa-btn" title="Favoritos" onclick="abrirPanel(\'favs\')">⭐</button><span class="fav-bdg" id="favBdg" style="display:none">0</span></div>'+
+      '<button class="mapa-btn" title="Recientes" onclick="abrirPanel(\'hist\')">🕐</button>'+
+      '<button class="mapa-btn" title="Satelital" onclick="toggleSat()" id="btnSat">🛰️</button>'+
+      '<button class="mapa-btn" title="Heatmap" onclick="toggleHeat()" id="btnHeat">🔥</button>'+
+      '<button class="mapa-btn" title="Medir" onclick="toggleMedir()" id="btnMedir">📏</button>'+
+      '<button class="mapa-btn" title="Radio" onclick="iniciarRadio()" id="btnRadio">⭕</button>'+
+      '<button class="mapa-btn" title="Seleccionar área" onclick="iniciarLazo()" id="btnLazo">✏️</button>';
+    vMapa.appendChild(mc);
+  }
+
+  // 5. Mini-mapa + botones en modal
+  if(!document.getElementById('miniMapW')){
+    var mb=document.getElementById('mBody');
+    if(mb){
+      var mw=document.createElement('div');mw.id='miniMapW';
+      mb.parentNode.insertBefore(mw,mb);
+    }
+  }
+
+  // 6. Botones extra en modal footer
+  var mFoot=document.querySelector('.modal-foot');
+  if(mFoot&&!document.getElementById('btnCampoTrig')){
+    var bf=document.createElement('button');
+    bf.id='btnCampoTrig';bf.title='Modo campo';
+    bf.style.cssText='padding:10px 11px;border:1px solid var(--line);border-radius:11px;font-size:1.1rem;font-weight:800;background:var(--card);color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-height:44px';
+    bf.textContent='🔦';bf.onclick=abrirCampo;
+    var btnPdf=document.getElementById('btnPdf');
+    if(btnPdf) mFoot.insertBefore(bf,btnPdf);
+    // Botones similares + imagen
+    var bSim=document.createElement('button');bSim.className='btn-share';bSim.style='background:var(--verde)';bSim.textContent='🔍';bSim.onclick=abrirSimilares;
+    var bImg=document.createElement('button');bImg.className='btn-share';bImg.style='background:var(--sol)';bImg.textContent='📸';bImg.onclick=compartirImg;
+    var bAl=document.createElement('button');bAl.id='btnAlertaM';
+    bAl.style.cssText='padding:10px 11px;border:1px solid var(--line);border-radius:11px;font-size:.78rem;font-weight:700;background:var(--card);color:var(--ink);cursor:pointer;min-height:44px';
+    bAl.textContent='🏳️ Alertar';bAl.onclick=toggleAlerta;
+    mFoot.appendChild(bSim);mFoot.appendChild(bImg);mFoot.appendChild(bAl);
+  }
+
+  // 7. Overlays
+  if(!document.getElementById('campoOv')){
+    var ovDiv=document.createElement('div');
+    ovDiv.innerHTML=
+    // Modo campo
+    '<div class="campo-ov" id="campoOv">'
+      +'<div class="campo-hdr"><div style="flex:1"><div class="campo-nom" id="cNom">—</div><div style="font-size:.77rem;opacity:.8;margin-top:2px" id="cMeta">—</div></div>'
+      +'<button style="background:rgba(255,255,255,.2);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:1.2rem;cursor:pointer" onclick="cerrarCampo()">✕</button></div>'
+      +'<div class="campo-body">'
+        +'<div class="campo-sems" id="cSems"></div>'
+        +'<div id="cCoords" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px;display:flex;align-items:center;gap:9px"><span style="font-size:1.3rem">📍</span><span style="font-size:.84rem;font-family:monospace;color:var(--agua-d);font-weight:600" id="cCoordsV"></span></div>'
+        +'<div style="background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px" id="cScore"></div>'
+        +'<div class="campo-btns">'
+          +'<button class="c-btn c-btn-nota" onclick="cerrarCampo();setTimeout(function(){abrirPanelNota&&abrirPanelNota()},120)"><span>✏️</span><span>Nota de campo</span></button>'
+          +'<button class="c-btn c-btn-fav" id="cFavBtn" onclick="toggleFav();refreshCampo()"><span id="cFavIco">☆</span><span>Favorito</span></button>'
+          +'<button class="c-btn c-btn-pdf" onclick="cerrarCampo();setTimeout(function(){abrirPreviaPDF&&abrirPreviaPDF()},120)"><span>📄</span><span>PDF</span></button>'
+          +'<button class="c-btn c-btn-back" onclick="cerrarCampo()"><span>←</span><span>Volver</span></button>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    // Notas globales
+    +'<div class="notas-ov" id="notasOv" onclick="if(event.target.id===\'notasOv\')cerrarNotas()">'
+      +'<div class="notas-card"><div class="notas-head"><span style="font-weight:700;font-size:.9rem">📒 Notas de campo</span><button class="xbtn" onclick="cerrarNotas()">✕</button></div>'
+      +'<div class="notas-body" id="notasBody"></div>'
+      +'<div class="notas-new"><textarea id="notaInp" placeholder="Nueva nota…" rows="2" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();guardarNota()}"></textarea><button onclick="guardarNota()">+</button></div>'
+      +'</div>'
+    +'</div>'
+    // Calculadora
+    +'<div class="calc-ov" id="calcOv" onclick="if(event.target.id===\'calcOv\')cerrarCalc()">'
+      +'<div class="calc-card"><div class="calc-head"><span style="font-weight:700;font-size:.9rem">💰 Calculadora inversión</span><button class="xbtn" onclick="cerrarCalc()">✕</button></div>'
+      +'<div class="calc-body">'
+        +'<div class="calc-row"><label>Costo/conexión agua (Bs)</label><input type="number" id="cCA" value="8500" oninput="recalcInv()"></div>'
+        +'<div class="calc-row"><label>Costo/unidad saneamiento (Bs)</label><input type="number" id="cCS" value="5200" oninput="recalcInv()"></div>'
+        +'<div class="calc-row"><label>Costo/conexión electricidad (Bs)</label><input type="number" id="cCE" value="4800" oninput="recalcInv()"></div>'
+        +'<div id="calcRes" class="calc-res" style="display:none"></div>'
+      +'</div></div>'
+    +'</div>'
+    // Panel universal (scatter, brecha, ranking, similares, filtroAv, plantillas)
+    +'<div class="pnl-overlay" id="pnlOv" onclick="if(event.target.id===\'pnlOv\')cerrarPnl()">'
+      +'<div class="pnl-card"><div class="pnl-head"><span id="pnlTit" style="font-weight:700;font-size:.9rem">—</span><button class="xbtn" onclick="cerrarPnl()">✕</button></div>'
+      +'<div class="pnl-body" id="pnlBody"></div></div>'
+    +'</div>'
+    // Panel rápido (favs/hist)
+    +'<div class="pr-fondo" id="prFondo" onclick="if(event.target.id===\'prFondo\')cerrarPR()">'
+      +'<div class="pr-card"><div class="pr-head" id="prHead">—</div>'
+      +'<div class="pr-body" id="prBody"></div></div>'
+    +'</div>';
+    document.body.appendChild(ovDiv);
+  }
+
+  // 8. CSV btn en lista
+  setTimeout(function(){
+    var secTit=document.querySelector('.seccion-titulo');
+    if(secTit&&!document.querySelector('.btn-csv')){
+      var bc=document.createElement('button');bc.className='btn-csv';bc.textContent='⬇ CSV';bc.onclick=exportCSV;
+      secTit.appendChild(bc);
+    }
+  },2000);
+
+  // 9. Autocomplete en búsqueda
+  var fBuscar=document.getElementById('fBuscar');
+  if(fBuscar&&!fBuscar._acReady){
+    fBuscar._acReady=true;
+    var acL=document.createElement('div');acL.className='ac-list';acL.id='acList';
+    var wrap2=document.createElement('div');wrap2.className='ac-wrap';
+    fBuscar.parentNode.insertBefore(wrap2,fBuscar);
+    wrap2.appendChild(fBuscar);wrap2.appendChild(acL);
+    fBuscar.setAttribute('autocomplete','off');
+    fBuscar.addEventListener('input',function(){onSearch(this.value);});
+    fBuscar.addEventListener('blur',function(){setTimeout(function(){var l=document.getElementById('acList');if(l)l.classList.remove('vis');},200);});
+  }
+
+  // 10. Botones en programa (duplicar, excel, import/export, plantillas)
+  // Se añaden dinámicamente cuando el usuario abre la vista de programas
+}
+
+// ================================================================
+// WRAP funciones existentes (seguro, se ejecuta después)
+// ================================================================
+function wrapFunctions(){
+  // cambiarVista → añadir 'inicio'
+  var _cv=window.cambiarVista;
+  window.cambiarVista=function(v){
+    var vi=document.getElementById('vInicio');
+    if(vi) vi.classList.remove('activa');
+    var ti=document.getElementById('tabInicio');
+    if(ti) ti.classList.remove('activo');
+    if(v==='inicio'){
+      if(vi){vi.classList.add('activa');}
+      if(ti){ti.classList.add('activo');}
+      renderDashboard();
+    } else {
+      _cv(v);
+    }
+  };
+
+  // abrirModal → añadir historial + mini-mapa + actualizar botón alerta/fav
+  var _am=window.abrirModal;
+  window.abrirModal=function(idx){
+    _am(idx);
+    var r=DATOS[idx];if(!r)return;
+    addHist(r);
+    actualizarFavBtn();
+    var ba=document.getElementById('btnAlertaM');
+    if(ba){var al=lsGet('censo_al')||{};ba.textContent=al[cId(r)]?'🚩 Alertada':'🏳️ Alertar';}
+    setTimeout(function(){iniciarMiniMapa(r);},200);
+  };
+
+  // cerrarModal → limpiar mini-mapa
+  var _cm=window.cerrarModal;
+  window.cerrarModal=function(){
+    _cm();
+    var w=document.getElementById('miniMapW');if(w){w.style.display='none';w.innerHTML='';}
+    if(miniMap){miniMap.remove();miniMap=null;}
+  };
+
+  // pintarMapa: NO se wrappea para no romper el mapa original.
+  // La leyenda de color se actualiza independientemente.
+  var _origPM = window.pintarMapa;
+  window.pintarMapa = function(){
+    actualizarLeyenda();
+    _origPM();
+  };
+
+  // Programas: botones extras añadidos con delay tras cambio de vista
+  // (no se wrappea renderListaProgramas para no romper el flujo original)
+
+  // Conectar mapa clicks a herramientas cuando mapa está listo
+  var _initMapa=window.initMapa;
+  window.initMapa=function(){
+    _initMapa();
+    if(window.mapa){
+      mapa.on('click',function(e){
+        if(medirOn){
+          if(!medirPtoA){medirPtoA=[e.latlng.lat,e.latlng.lng];showToolBar('Toca punto B');}
+          else{
+            var d=hv(medirPtoA,[e.latlng.lat,e.latlng.lng]);
+            if(medirLinea)mapa.removeLayer(medirLinea);
+            medirLinea=L.polyline([medirPtoA,[e.latlng.lat,e.latlng.lng]],{color:'#c44536',weight:2,dashArray:'5,4'}).addTo(mapa);
+            L.popup().setLatLng(e.latlng).setContent('<b>'+d.toFixed(2)+' km</b>').openOn(mapa);
+            medirPtoA=null;showToolBar('Toca otro punto A');
+          }
+          return;
+        }
+        if(radioWait){
+          radioWait=false;cancelTool();
+          L.circle([e.latlng.lat,e.latlng.lng],{radius:radioKm*1000,color:'#1f7a8c',weight:2,fillOpacity:.07}).addTo(mapa)
+            .bindPopup('<b>'+DATOS.filter(function(r){return r.lat&&r.lon&&hv([e.latlng.lat,e.latlng.lng],[r.lat,r.lon])<=radioKm;}).length+' comunidades</b> en '+radioKm+' km').openPopup();
+          return;
+        }
+        if(lazoOn){
+          if(!lazoPtoA){lazoPtoA=e.latlng;showToolBar('Toca la esquina opuesta');}
+          else{
+            var bounds=L.latLngBounds(lazoPtoA,e.latlng);
+            if(lazoRect)mapa.removeLayer(lazoRect);
+            lazoRect=L.rectangle(bounds,{color:'#1f7a8c',weight:2,fillOpacity:.06}).addTo(mapa);
+            filtrados=DATOS.filter(function(r){return r.lat&&r.lon&&bounds.contains([r.lat,r.lon]);});
+            render();pintarMapa();
+            lazoRect.bindPopup('<b>'+filtrados.length+' comunidades</b> seleccionadas').openPopup();
+            lazoOn=false;lazoPtoA=null;document.getElementById('btnLazo').classList.remove('on');cancelTool();
+          }
+          return;
+        }
+      });
+    }
+  };
+}
+
+// ================================================================
+// COLOR DEL MAPA
+// ================================================================
+function getColorMapa(r){
+  var mode=(document.getElementById('colorMode')||{value:'tipo'}).value||'tipo';
+  if(mode==='tipo')return r.tipo==='Dispersa'?'#5c8a3a':'#1f7a8c';
+  var a=pctAgua(r),s=pctSanea(r),e=pctElec(r);
+  if(mode==='agua')return a>=60?'#3a8a40':a>=30?'#e8a020':'#c44536';
+  if(mode==='sanea')return s<=25?'#3a8a40':s<=60?'#e8a020':'#c44536';
+  if(mode==='pob'){var p=r.pT||0;return p>=500?'#1f3a8c':p>=200?'#1f7a8c':p>=50?'#3ab8c8':'#8acfdf';}
+  return '#1f7a8c';
+}
+function actualizarLeyenda(){
+  var el=document.getElementById('mapaLey');if(!el)return;
+  var mode=(document.getElementById('colorMode')||{value:'tipo'}).value||'tipo';
+  var L2={tipo:[['#5c8a3a','Dispersa'],['#1f7a8c','Amanzanada']],
+    agua:[['#c44536','<30%'],['#e8a020','30-60%'],['#3a8a40','>60%']],
+    sanea:[['#3a8a40','<25%'],['#e8a020','25-60%'],['#c44536','>60%']],
+    pob:[['#8acfdf','<50'],['#3ab8c8','50-200'],['#1f7a8c','200-500'],['#1f3a8c','>500']]};
+  el.innerHTML=(L2[mode]||[]).map(function(x){return '<span class="ley-i"><span class="ley-d" style="background:'+x[0]+'"></span>'+x[1]+'</span>';}).join('');
+}
+function toggleColorBar(){
+  var b=document.getElementById('mapaColorBar');if(!b)return;
+  b.classList.toggle('vis');document.getElementById('btnColor').classList.toggle('on');
+  if(b.classList.contains('vis'))actualizarLeyenda();
+}
+window.actualizarColorMapa=function(){actualizarLeyenda();pintarMapa();};
+
+// ================================================================
+// HERRAMIENTAS MAPA
+// ================================================================
+function showToolBar(txt,conInput){
+  var tb=document.getElementById('mapaToolBar');if(!tb)return;
+  document.getElementById('mapaToolTxt').textContent=txt;
+  var ri=document.getElementById('radioKmInp'),ro=document.getElementById('radioOkBtn');
+  if(ri)ri.style.display=conInput?'block':'none';
+  if(ro)ro.style.display=conInput?'block':'none';
+  tb.classList.add('vis');
+}
+window.cancelTool=function(){
+  medirOn=false;lazoOn=false;radioWait=false;
+  ['btnMedir','btnLazo','btnRadio'].forEach(function(id){var el=document.getElementById(id);if(el)el.classList.remove('on');});
+  var tb=document.getElementById('mapaToolBar');if(tb)tb.classList.remove('vis');
+  if(mapa)mapa.getContainer().style.cursor='';
+};
+window.miUbicacion=function(){
+  var btn=document.getElementById('btnGps');if(btn)btn.textContent='⏳';
+  navigator.geolocation.getCurrentPosition(function(p){
+    if(btn)btn.textContent='📍';
+    mapa.setView([p.coords.latitude,p.coords.longitude],13);
+    L.circleMarker([p.coords.latitude,p.coords.longitude],{radius:9,color:'#fff',weight:2.5,fillColor:'#1f7a8c',fillOpacity:.95}).bindPopup('<b>Tu ubicación</b>').addTo(mapa).openPopup();
+  },function(){if(btn)btn.textContent='📍';alert('No se pudo obtener GPS.');},{enableHighAccuracy:true,timeout:12000});
+};
+window.toggleSat=function(){
+  var on=document.getElementById('btnSat').classList.toggle('on');
+  if(on&&!capaSat)capaSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'}).addTo(mapa);
+  else if(!on&&capaSat){mapa.removeLayer(capaSat);capaSat=null;}
+};
+window.toggleHeat=function(){
+  var on=document.getElementById('btnHeat').classList.toggle('on');
+  if(capaHeat){mapa.removeLayer(capaHeat);capaHeat=null;}
+  if(!on)return;
+  if(typeof L.heatLayer!=='function'){alert('Leaflet.heat no cargado — necesita internet.');document.getElementById('btnHeat').classList.remove('on');return;}
+  var pts=(filtrados.length?filtrados:DATOS).filter(function(r){return r.lat&&r.lon;}).map(function(r){
+    var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+    return [r.lat,r.lon,Math.max(1,(r.pT||1)*(at>0?1-((r.aCan||0)+(r.aPil||0))/at:1))];
+  });
+  capaHeat=L.heatLayer(pts,{radius:35,blur:25,maxZoom:12,max:300}).addTo(mapa);
+};
+window.toggleMedir=function(){
+  medirOn=!medirOn;document.getElementById('btnMedir').classList.toggle('on',medirOn);
+  medirPtoA=null;if(medirLinea){mapa.removeLayer(medirLinea);medirLinea=null;}
+  if(medirOn)showToolBar('Toca punto A en el mapa');else cancelTool();
+};
+window.iniciarRadio=function(){showToolBar('Radio de influencia (km):',true);};
+window.confirmarRadio=function(){
+  radioKm=parseFloat(document.getElementById('radioKmInp').value)||10;
+  radioWait=true;showToolBar('Toca el centro del radio en el mapa');
+};
+window.iniciarLazo=function(){
+  lazoOn=!lazoOn;document.getElementById('btnLazo').classList.toggle('on',lazoOn);
+  lazoPtoA=null;if(lazoOn)showToolBar('Toca la 1ª esquina del área');else{cancelTool();if(lazoRect){mapa.removeLayer(lazoRect);lazoRect=null;}}
+};
+
+// ================================================================
+// MINI-MAPA EN FICHA
+// ================================================================
+function iniciarMiniMapa(r){
+  var w=document.getElementById('miniMapW');if(!w)return;
+  if(!r||!r.lat||!r.lon){w.style.display='none';return;}
+  w.style.display='block';w.style.height='162px';
+  if(miniMap){miniMap.remove();miniMap=null;}
+  w.innerHTML='<div id="miniMapEl" style="width:100%;height:100%"></div>';
+  setTimeout(function(){
+    miniMap=L.map('miniMapEl',{zoomControl:true,attributionControl:false,scrollWheelZoom:false}).setView([r.lat,r.lon],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(miniMap);
+    L.circleMarker([r.lat,r.lon],{radius:9,color:'#fff',weight:2.5,fillColor:'#c44536',fillOpacity:.95}).addTo(miniMap);
+  },80);
+}
+
+// ================================================================
+// FAVORITOS
+// ================================================================
+function cargarFavs(){return lsGet('censo_favs')||[];}
+function guardarFavs(a){lsSet('censo_favs',a);}
+function esFav(r){return cargarFavs().some(function(f){return f.id===cId(r);});}
+window.toggleFav=function(){
+  if(!comActual)return;
+  var id=cId(comActual),favs=cargarFavs();
+  var i=favs.findIndex(function(f){return f.id===id;});
+  if(i>=0)favs.splice(i,1);else favs.unshift({id:id,com:comActual.com,mun:comActual.mun,pT:comActual.pT,ts:Date.now()});
+  guardarFavs(favs);actualizarFavBtn();actualizarFavBdg();
+};
+function actualizarFavBtn(){
+  if(!comActual)return;var es=esFav(comActual);
+  var btn=document.getElementById('btnFavModal');if(btn){btn.textContent=es?'★':'☆';btn.style.color=es?'#e6b800':'';}
+  var fi=document.getElementById('cFavIco');if(fi)fi.textContent=es?'★':'☆';
+}
+function actualizarFavBdg(){
+  var n=cargarFavs().length,el=document.getElementById('favBdg');
+  if(el){el.style.display=n>0?'flex':'none';el.textContent=n>9?'9+':n;}
+}
+actualizarFavBdg();
+
+// ================================================================
+// HISTORIAL
+// ================================================================
+function addHist(r){
+  var h=lsGet('censo_hist')||[],id=cId(r);
+  h=h.filter(function(x){return x.id!==id;});
+  h.unshift({id:id,com:r.com,mun:r.mun,pT:r.pT,ts:Date.now()});
+  if(h.length>10)h.pop();lsSet('censo_hist',h);
+}
+
+// ================================================================
+// PANEL RÁPIDO (favs/hist)
+// ================================================================
+window.abrirPanel=function(tipo){
+  var items=tipo==='favs'?cargarFavs():(lsGet('censo_hist')||[]);
+  var titulo=tipo==='favs'?'⭐ Favoritos':'🕐 Recientes';
+  document.getElementById('prHead').textContent=titulo;
+  document.getElementById('prBody').innerHTML=items.length?items.map(function(h){
+    var idx=DATOS.findIndex(function(r){return cId(r)===h.id;});
+    return '<div class="pr-item" onclick="cerrarPR();if('+idx+'>=0)abrirModal('+idx+')">'
+      +'<span class="d-ico">'+(tipo==='favs'?'⭐':'🕐')+'</span>'
+      +'<div class="d-inf"><div class="d-nom">'+h.com+'</div><div class="d-sub">'+h.mun+' · '+(h.pT||0).toLocaleString()+' hab.</div></div>'
+      +'<span style="color:var(--muted)">›</span></div>';
+  }).join(''):'<div style="text-align:center;padding:22px;color:var(--muted);font-size:.82rem">'+(tipo==='favs'?'Sin favoritos. Toca ☆ en la ficha.':'Sin historial todavía.')+'</div>';
+  document.getElementById('prFondo').classList.add('activo');
+};
+window.cerrarPR=function(){document.getElementById('prFondo').classList.remove('activo');};
+
+// ================================================================
+// MODO CAMPO
+// ================================================================
+window.abrirCampo=function(){
+  if(!comActual)return;
+  var r=comActual;
+  document.getElementById('cNom').textContent=r.com;
+  document.getElementById('cMeta').textContent=r.mun+', '+r.prov+' · '+r.dep+' · '+r.tipo;
+  refreshCampo();
+  var cc=document.getElementById('cCoords');
+  if(cc&&r.lat){cc.style.display='flex';document.getElementById('cCoordsV').textContent=r.lat.toFixed(5)+'°S, '+Math.abs(r.lon).toFixed(5)+'°O';}
+  document.getElementById('campoOv').classList.add('activo');
+};
+window.cerrarCampo=function(){document.getElementById('campoOv').classList.remove('activo');};
+window.refreshCampo=function(){
+  if(!comActual)return;var r=comActual;
+  var a=pctAgua(r),s=pctSanea(r),e=pctElec(r);
+  document.getElementById('cSems').innerHTML=[
+    {i:'💧',v:a,l:'Agua',inv:false},{i:'🚽',v:s,l:'Sin sanea.',inv:true},{i:'⚡',v:e,l:'Elec.',inv:false}
+  ].map(function(x){return '<div class="c-sem '+semCls(x.v,x.inv)+'"><span style="font-size:1.6rem">'+x.i+'</span><span class="c-sem-p">'+x.v+'%</span><span class="c-sem-l">'+x.l+'</span></div>';}).join('');
+  var sc=calcScore(r);var c2=sc>=60?'#c44536':sc>=30?'#dba017':'#3a8a40';
+  document.getElementById('cScore').innerHTML='<div style="font-size:.67rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Índice de prioridad</div>'
+    +'<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:9px;background:var(--line);border-radius:5px;overflow:hidden"><div style="width:'+sc+'%;height:100%;background:'+c2+'"></div></div><span style="font-size:1rem;font-weight:900;color:'+c2+'">'+sc+'/100</span></div>'
+    +'<div style="font-size:.69rem;color:'+c2+';font-weight:700;margin-top:3px">'+(sc>=60?'CRÍTICA':sc>=30?'MEDIA':'BAJA')+'</div>';
+  var fi=document.getElementById('cFavIco');if(fi)fi.textContent=esFav(r)?'★':'☆';
+};
+
+// ================================================================
+// NOTAS GLOBALES
+// ================================================================
+window.abrirNotas=function(){renderNotas();document.getElementById('notasOv').classList.add('activo');};
+window.cerrarNotas=function(){document.getElementById('notasOv').classList.remove('activo');};
+function renderNotas(){
+  var n=lsGet('censo_notas')||[];
+  document.getElementById('notasBody').innerHTML=n.length?n.map(function(x,i){
+    return '<div class="nota-g"><div class="nota-g-t">'+x.t+'</div>'
+      +'<div class="nota-g-m"><span>'+new Date(x.ts).toLocaleDateString('es',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'</span>'
+      +'<button onclick="delNota('+i+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem">🗑</button></div></div>';
+  }).join(''):'<div style="text-align:center;padding:18px;color:var(--muted);font-size:.82rem">Sin notas. Escribí la primera abajo.</div>';
+  var bdg=document.getElementById('notasBdg');if(bdg){bdg.style.display=n.length>0?'flex':'none';bdg.textContent=n.length;}
+}
+window.guardarNota=function(){
+  var inp=document.getElementById('notaInp');var t=inp.value.trim();if(!t)return;
+  var n=lsGet('censo_notas')||[];n.unshift({t:t,ts:Date.now()});lsSet('censo_notas',n);inp.value='';renderNotas();
+};
+window.delNota=function(i){var n=lsGet('censo_notas')||[];n.splice(i,1);lsSet('censo_notas',n);renderNotas();};
+
+// ================================================================
+// ALERTAS
+// ================================================================
+window.toggleAlerta=function(){
+  if(!comActual)return;
+  var id=cId(comActual),al=lsGet('censo_al')||{};
+  if(al[id])delete al[id];else al[id]={com:comActual.com,mun:comActual.mun,ts:Date.now()};
+  lsSet('censo_al',al);
+  var btn=document.getElementById('btnAlertaM');if(btn)btn.textContent=al[id]?'🚩 Alertada':'🏳️ Alertar';
+  var bdg=document.getElementById('alertaBdg');if(bdg){var n=Object.keys(al).length;bdg.style.display=n>0?'flex':'none';bdg.textContent=n;}
+};
+window.abrirAlertas=function(){
+  var al=lsGet('censo_al')||{};var ids=Object.keys(al);
+  var wrap=document.createElement('div');wrap.id='alWrap';
+  wrap.style.cssText='position:fixed;inset:0;z-index:870;background:rgba(19,32,28,.5);display:flex;align-items:flex-end';
+  wrap.innerHTML='<div style="background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:70vh;display:flex;flex-direction:column">'
+    +'<div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">'
+    +'<span style="font-weight:700;font-size:.9rem">🚩 Alertas pendientes ('+ids.length+')</span>'
+    +'<button onclick="document.getElementById(\'alWrap\').remove()" style="background:none;border:none;font-size:1.2rem;color:var(--muted)">✕</button></div>'
+    +'<div style="overflow-y:auto;flex:1;padding:10px 13px">'
+    +(ids.length?ids.map(function(id){
+      var a=al[id];var idx=DATOS.findIndex(function(r){return cId(r)===id;});
+      return '<div class="d-item" onclick="document.getElementById(\'alWrap\').remove();if('+idx+'>=0)abrirModal('+idx+')">'
+        +'<span class="d-ico">🚩</span><div class="d-inf"><div class="d-nom">'+a.com+'</div><div class="d-sub">'+a.mun+'</div></div>'
+        +'<span style="color:var(--muted)">›</span></div>';
+    }).join(''):'<div style="text-align:center;padding:20px;color:var(--muted);font-size:.82rem">Sin alertas. Toca 🏳️ en la ficha.</div>')
+    +'</div></div>';
+  wrap.onclick=function(e){if(e.target.id==='alWrap')wrap.remove();};
+  document.body.appendChild(wrap);
+};
+
+// ================================================================
+// CALCULADORA
+// ================================================================
+window.abrirCalc=function(){document.getElementById('calcOv').classList.add('activo');recalcInv();};
+window.cerrarCalc=function(){document.getElementById('calcOv').classList.remove('activo');};
+window.recalcInv=function(){
+  var ca=parseFloat(document.getElementById('cCA').value)||8500;
+  var cs=parseFloat(document.getElementById('cCS').value)||5200;
+  var ce=parseFloat(document.getElementById('cCE').value)||4800;
+  var base=(filtrados.length?filtrados:DATOS).slice(0,200);
+  var tA=0,tS=0,tE=0;
+  base.forEach(function(r){
+    var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+    var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+    var et=(r.elPub||0)+(r.elNo||0);
+    tA+=(at>0?Math.round(at-((r.aCan||0)+(r.aPil||0))):(r.vT||0))*ca;
+    tS+=(st>0?Math.round(r.snNo||0):(r.vT||0))*cs;
+    tE+=(et>0?Math.round(et-(r.elPub||0)):(r.vT||0))*ce;
+  });
+  var res=document.getElementById('calcRes');res.style.display='block';
+  res.innerHTML='<div class="calc-tot">'+fmtM(tA+tS+tE)+'</div>'
+    +'<div style="font-size:.72rem;color:var(--muted);margin-top:3px">'+base.length+' comunidades · Agua: '+fmtM(tA)+' · Sanea: '+fmtM(tS)+' · Elec: '+fmtM(tE)+'</div>';
+};
+
+// ================================================================
+// PANEL UNIVERSAL
+// ================================================================
+window.cerrarPnl=function(){document.getElementById('pnlOv').classList.remove('activo');if(scatterInst){scatterInst.destroy();scatterInst=null;}};
+function abrirPnl(titulo,html2){
+  document.getElementById('pnlTit').textContent=titulo;
+  document.getElementById('pnlBody').innerHTML=html2;
+  document.getElementById('pnlOv').classList.add('activo');
+}
+
+// ================================================================
+// SCATTER
+// ================================================================
+window.abrirScatter=function(){
+  document.getElementById('pnlTit').textContent='📈 Agua vs Saneamiento';
+  document.getElementById('pnlBody').innerHTML='<div style="font-size:.71rem;color:var(--muted);margin-bottom:8px">Cada punto = comunidad. Toca para ver la ficha. 🔴=crítica 🟡=media 🟢=baja</div><canvas id="sCvs" style="max-height:300px"></canvas><div id="sInfo" style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:5px"></div>';
+  document.getElementById('pnlOv').classList.add('activo');
+  var base=(filtrados.length?filtrados:DATOS).filter(function(r){return r.lat;}).slice(0,2000);
+  var ds=base.map(function(r){
+    var sc=calcScore(r);
+    return {x:pctAgua(r),y:pctSanea(r),_i:DATOS.indexOf(r),
+      backgroundColor:sc>=60?'rgba(196,69,54,.65)':sc>=30?'rgba(210,140,30,.65)':'rgba(46,122,56,.65)'};
+  });
+  if(scatterInst)scatterInst.destroy();
+  scatterInst=new Chart(document.getElementById('sCvs').getContext('2d'),{type:'scatter',
+    data:{datasets:[{data:ds,pointRadius:4,pointHoverRadius:7,backgroundColor:ds.map(function(d){return d.backgroundColor;})}]},
+    options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){var d=ds[c.dataIndex];var r=DATOS[d._i];return (r?r.com+' ('+r.mun+')':'');}}}},
+      scales:{x:{title:{display:true,text:'% Agua segura',font:{size:10}},min:0,max:100},y:{title:{display:true,text:'% Sin saneamiento',font:{size:10}},min:0,max:100}},
+      onClick:function(e,els){if(!els.length)return;cerrarPnl();abrirModal(ds[els[0].index]._i);}
+    }
+  });
+  document.getElementById('sInfo').textContent=base.length+' comunidades mostradas';
+};
+
+// ================================================================
+// BRECHA DEPARTAMENTAL
+// ================================================================
+window.abrirBrechas=function(){
+  var deps={};
+  DATOS.forEach(function(r){
+    var d=r.dep||'S/D';if(!deps[d])deps[d]={p:0,sA:0,sS:0,sE:0};
+    var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
+    var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+    var et=(r.elPub||0)+(r.elNo||0);var pob=r.pT||0;
+    deps[d].p+=pob;
+    deps[d].sA+=at>0?pob*(1-((r.aCan||0)+(r.aPil||0))/at):pob;
+    deps[d].sS+=st>0?pob*((r.snNo||0)/st):pob;
+    deps[d].sE+=et>0?pob*(1-(r.elPub||0)/et):pob;
+  });
+  var list=Object.keys(deps).filter(function(k){return k!=='S/D';}).sort(function(a,b){return (deps[b].sA/Math.max(1,deps[b].p))-(deps[a].sA/Math.max(1,deps[a].p));});
+  function fN(n){return n>=1000?(n/1000).toFixed(1)+'K':Math.round(n)+'';} 
+  var h='<div style="font-size:.7rem;color:var(--muted);margin-bottom:10px">% de población estimada sin acceso</div>';
+  [{k:'sA',l:'Sin agua potable',c:'#c44536'},{k:'sS',l:'Sin saneamiento',c:'#dba017'},{k:'sE',l:'Sin electricidad',c:'#5c8a3a'}].forEach(function(ind){
+    h+='<div style="margin-bottom:14px"><div style="font-size:.74rem;font-weight:800;color:var(--muted);margin-bottom:5px">'+ind.l+'</div>';
+    var mx=Math.max.apply(null,list.map(function(d){return deps[d][ind.k];}));
+    list.forEach(function(d){
+      var v=deps[d][ind.k],pct=deps[d].p>0?Math.round(v/deps[d].p*100):0;
+      h+='<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--line)">'
+        +'<span style="flex:0 0 70px;font-size:.71rem;font-weight:700">'+d.substring(0,9)+'</span>'
+        +'<div style="flex:1;background:var(--line);border-radius:3px;height:7px;overflow:hidden"><div style="width:'+(mx?v/mx*100:0)+'%;height:100%;background:'+ind.c+'"></div></div>'
+        +'<span style="flex:0 0 30px;font-size:.7rem;text-align:right;font-weight:700">'+pct+'%</span>'
+        +'<span style="flex:0 0 36px;font-size:.67rem;color:var(--muted);text-align:right">'+fN(v)+'</span></div>';
+    });
+    h+='</div>';
+  });
+  abrirPnl('📉 Brecha por departamento',h);
+};
+
+// ================================================================
+// RANKING
+// ================================================================
+window.abrirRanking=function(){
+  var base=(filtrados.length?filtrados:DATOS).slice().sort(function(a,b){return calcScore(b)-calcScore(a);}).slice(0,30);
+  var h='<div style="font-size:.73rem;color:var(--muted);margin-bottom:8px">Top 30 más críticas. Toca para ver la ficha.</div>';
+  base.forEach(function(r,i){
+    var sc=calcScore(r);var idx=DATOS.indexOf(r);
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="cerrarPnl();abrirModal('+idx+')">'
+      +'<span style="flex:0 0 20px;font-weight:800;font-size:.77rem;color:var(--muted)">'+(i+1)+'</span>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.com+'</div>'
+      +'<div style="font-size:.67rem;color:var(--muted)">'+r.mun+'</div></div>'
+      +scorePill(sc)+'</div>';
+  });
+  abrirPnl('🏆 Ranking de prioridad',h);
+};
+
+// ================================================================
+// SIMILARES
+// ================================================================
+window.abrirSimilares=function(){
+  if(!comActual)return;var r=comActual;
+  var a=pctAgua(r),s=pctSanea(r),e=pctElec(r);
+  var sims=DATOS.filter(function(d){return d!==r&&d.mun!==r.mun;}).map(function(d){
+    var dist=Math.sqrt(Math.pow(a-pctAgua(d),2)+Math.pow(s-pctSanea(d),2)*1.2+Math.pow(e-pctElec(d),2)*0.5);
+    return {d:d,dist:dist};
+  }).sort(function(a2,b){return a2.dist-b.dist;}).slice(0,10);
+  var h='<div style="font-size:.71rem;color:var(--muted);padding-bottom:9px">Similares a <b>'+r.com+'</b></div>';
+  sims.forEach(function(s2){
+    var idx=DATOS.indexOf(s2.d);var sim=Math.max(0,Math.round(100-s2.dist));
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="cerrarPnl();abrirModal('+idx+')">'
+      +'<span style="padding:2px 7px;border-radius:6px;font-size:.64rem;font-weight:800;background:var(--agua-l);color:var(--agua-d);flex:0 0 auto">'+sim+'%</span>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s2.d.com+'</div>'
+      +'<div style="font-size:.67rem;color:var(--muted)">'+s2.d.mun+', '+s2.d.dep+'</div></div>'
+      +'<span style="color:var(--muted)">›</span></div>';
+  });
+  abrirPnl('🔍 Comunidades similares',h);
+};
+
+// ================================================================
+// FILTRO AVANZADO
+// ================================================================
+var INDS=[{k:'pT',l:'Población total'},{k:'_agua',l:'% agua segura'},{k:'_sanea',l:'% sin saneamiento'},{k:'_elec',l:'% electricidad'},{k:'_score',l:'Score prioridad'}];
+window.abrirFiltroAv=function(){condsFAv=[{ind:'_agua',op:'<',val:50}];renderCondsFAv();document.getElementById('pnlOv').classList.add('activo');document.getElementById('pnlTit').textContent='🔬 Filtro avanzado';};
+function renderCondsFAv(){
+  var h=condsFAv.map(function(c,i){
+    return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+      +'<select onchange="condsFAv['+i+'].ind=this.value" style="flex:1;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.76rem;background:var(--card);color:var(--ink)">'
+      +INDS.map(function(x){return '<option value="'+x.k+'"'+(x.k===c.ind?' selected':'')+'>'+x.l+'</option>';}).join('')+'</select>'
+      +'<select onchange="condsFAv['+i+'].op=this.value" style="width:48px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.8rem;background:var(--card);color:var(--ink)">'
+      +['<','<=','=','>=','>'].map(function(o){return '<option'+(o===c.op?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'
+      +'<input type="number" value="'+c.val+'" onchange="condsFAv['+i+'].val=+this.value" style="width:55px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.8rem;background:var(--card);color:var(--ink)">'
+      +'<button onclick="condsFAv.splice('+i+',1);renderCondsFAvUI()" style="background:none;border:none;font-size:1rem;color:var(--muted);cursor:pointer">🗑</button></div>';
+  }).join('');
+  h+='<button onclick="condsFAv.push({ind:\'_agua\',op:\'<\',val:50});renderCondsFAvUI()" style="width:100%;padding:8px;border:1px dashed var(--agua);border-radius:9px;color:var(--agua);font-weight:700;font-size:.79rem;background:none;margin-top:5px">＋ Condición</button>'
+    +'<button onclick="aplicarFAv()" style="width:100%;padding:10px;background:var(--agua);color:#fff;border:none;border-radius:9px;font-weight:800;font-size:.83rem;margin-top:9px">Aplicar filtro</button>';
+  document.getElementById('pnlBody').innerHTML=h;
+}
+window.renderCondsFAvUI=function(){renderCondsFAv();};
+function valInd(r,k){
+  if(k==='pT')return r.pT||0;if(k==='_score')return calcScore(r);
+  if(k==='_agua')return pctAgua(r);if(k==='_sanea')return pctSanea(r);if(k==='_elec')return pctElec(r);return 0;
+}
+function aplicarFAv(){
+  filtrados=DATOS.filter(function(r){return condsFAv.every(function(c){
+    var v=valInd(r,c.ind);return c.op==='<'?v<c.val:c.op==='<='?v<=c.val:c.op==='='?v===c.val:c.op==='>='?v>=c.val:v>c.val;
+  });});
+  cerrarPnl();cambiarVista('lista');render();pintarMapa();
+}
+
+// ================================================================
+// AUTOCOMPLETE
+// ================================================================
+function onSearch(v){
+  var list=document.getElementById('acList');if(!list)return;
+  if(!v||v.length<2||!window.datosListos){list.classList.remove('vis');return;}
+  var q=norm(v);
+  var m=DATOS.filter(function(r){return norm(r.com).includes(q);}).slice(0,8);
+  if(!m.length){list.classList.remove('vis');return;}
+  list.innerHTML=m.map(function(r){
+    return '<div class="ac-item" onmousedown="selAC(\''+r.com.replace(/\'/g,"\\'")+'\')">'
+      +'<span class="ac-com">'+r.com+'</span> <span class="ac-mun">'+r.mun+', '+r.dep+'</span></div>';
+  }).join('');
+  list.classList.add('vis');
+}
+window.selAC=function(nom){
+  var f=document.getElementById('fBuscar');if(f)f.value=nom;
+  var l=document.getElementById('acList');if(l)l.classList.remove('vis');
+  window.aplicarFiltros&&window.aplicarFiltros();
+};
+
+// ================================================================
+// DASHBOARD
+// ================================================================
+function renderDashboard(){
+  var kpis=document.getElementById('dKpis');if(!kpis)return;
+  if(!window.datosListos){kpis.innerHTML='<div style="color:var(--muted);font-size:.8rem;grid-column:1/-1">Cargando datos…</div>';return;}
+  var totP=suma(DATOS,'pT');
+  var sinA=DATOS.reduce(function(s,r){var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);return s+(at>0?((at-(r.aCan||0)-(r.aPil||0))/at*(r.pT||0)):0);},0);
+  kpis.innerHTML=
+    '<div class="d-kpi"><div class="d-kpi-v">'+DATOS.length.toLocaleString()+'</div><div class="d-kpi-l">Comunidades</div></div>'+
+    '<div class="d-kpi"><div class="d-kpi-v">'+(totP/1e6).toFixed(2)+'M</div><div class="d-kpi-l">Habitantes rurales</div></div>'+
+    '<div class="d-kpi"><div class="d-kpi-v" style="color:var(--rojo)">'+Math.round(sinA/totP*100)+'%</div><div class="d-kpi-l">Sin agua segura</div></div>'+
+    '<div class="d-kpi"><div class="d-kpi-v">9</div><div class="d-kpi-l">Departamentos</div></div>';
+  var progs=window.programas||{};var ids=Object.keys(progs).sort(function(a,b){return (progs[b].creado||0)-(progs[a].creado||0);}).slice(0,3);
+  document.getElementById('dProgs').innerHTML=ids.length?ids.map(function(id){
+    var p=progs[id];var n=Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];}).length;
+    return '<div class="d-item" onclick="cambiarVista(\'programas\');setTimeout(function(){abrirPrograma(\''+id+'\')},100)">'
+      +'<span class="d-ico">📊</span><div class="d-inf"><div class="d-nom">'+(p.nombre||'Sin nombre')+'</div><div class="d-sub">'+(p.municipios||[]).length+' municipios · '+n+' com.</div></div>'
+      +'<span style="color:var(--muted)">›</span></div>';
+  }).join(''):'<div style="font-size:.8rem;color:var(--muted)">Sin programas. <span onclick="cambiarVista(\'programas\')" style="color:var(--agua);cursor:pointer">Crear →</span></div>';
+  var hist=lsGet('censo_hist')||[];
+  document.getElementById('dRecientes').innerHTML=hist.length?hist.slice(0,5).map(function(h){
+    var idx=DATOS.findIndex(function(r){return cId(r)===h.id;});
+    return '<div class="d-item" onclick="if('+idx+'>=0)abrirModal('+idx+')">'
+      +'<span class="d-ico">🕐</span><div class="d-inf"><div class="d-nom">'+h.com+'</div><div class="d-sub">'+h.mun+' · '+(h.pT||0).toLocaleString()+' hab.</div></div>'
+      +'<span style="color:var(--muted)">›</span></div>';
+  }).join(''):'<div style="font-size:.8rem;color:var(--muted)">Abrí fichas para verlas acá.</div>';
+}
+window.renderDashboard=renderDashboard;
+
+// ================================================================
+// PLANTILLAS
+// ================================================================
+var PLTS=[{n:'Sin agua rural',i:'💧',d:'<500 hab, agua <30%'},{n:'Alta prioridad saneamiento',i:'🚽',d:'>60% sin saneamiento'},{n:'Pequeñas y críticas',i:'🆘',d:'<100 hab, agua <40%'},{n:'Sin electricidad',i:'⚡',d:'<20% cobertura eléctrica'},{n:'Revisión completa',i:'📋',d:'Sin filtro adicional'}];
+window.mostrarPlantillas=function(){
+  abrirPnl('📋 Crear desde plantilla',
+    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">Seleccioná una plantilla</div>'
+    +PLTS.map(function(p,i){
+      return '<div class="d-item" style="margin-bottom:7px" onclick="crearDesdePlt('+i+')">'
+        +'<span class="d-ico">'+p.i+'</span><div class="d-inf"><div class="d-nom">'+p.n+'</div><div class="d-sub">'+p.d+'</div></div><span style="color:var(--muted)">›</span></div>';
+    }).join('')
+  );
+};
+window.crearDesdePlt=function(i){
+  cerrarPnl();var id='prog_'+Date.now();
+  window.programas[id]={nombre:PLTS[i].n,creado:Date.now(),municipios:[],seleccion:{},estados:{}};
+  window.guardarProgramas&&window.guardarProgramas();cambiarVista('programas');setTimeout(function(){window.abrirPrograma&&window.abrirPrograma(id);},100);
+};
+
+// ================================================================
+// DUPLICAR PROGRAMA
+// ================================================================
+window.dupProg=function(id){
+  var p=window.programas[id];if(!p)return;
+  var nid='prog_'+Date.now();
+  window.programas[nid]=JSON.parse(JSON.stringify(p));
+  window.programas[nid].nombre=(p.nombre||'Programa')+' (copia)';
+  window.programas[nid].creado=Date.now();
+  window.guardarProgramas&&window.guardarProgramas();window.renderProgramas&&window.renderProgramas();
+};
+
+// ================================================================
+// IMPORT / EXPORT PROGRAMAS
+// ================================================================
+window.exportProgJSON=function(){
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({v:1,fecha:new Date().toISOString(),programas:window.programas},null,2)],{type:'application/json'}));
+  a.download='programas_censo.json';a.click();
+};
+window.importProgJSON=function(inp){
+  var f=inp.files[0];if(!f)return;
+  var r2=new FileReader();r2.onload=function(e){
+    try{
+      var obj=JSON.parse(e.target.result);var imp=obj.programas||obj;
+      var keys=Object.keys(imp);if(!keys.length)throw new Error('Sin programas');
+      if(!confirm('Importar '+keys.length+' programa(s)?'))return;
+      keys.forEach(function(k){window.programas[k]=imp[k];});
+      window.guardarProgramas&&window.guardarProgramas();window.renderProgramas&&window.renderProgramas();
+    }catch(err){alert('Error: '+err.message);}
+  };
+  r2.readAsText(f);inp.value='';
+};
+
+// ================================================================
+// EXPORT EXCEL PROGRAMA
+// ================================================================
+window.expProgExcel=function(progId){
+  var p=window.programas[progId];if(!p)return;
+  if(typeof XLSX==='undefined'){alert('Librería Excel no cargada — necesita internet.');return;}
+  var sels=Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];});
+  var coms=sels.map(function(k){return DATOS.find(function(r){return cId(r)===k;});}).filter(Boolean);
+  if(!coms.length){alert('Sin comunidades marcadas.');return;}
+  var rows=[['Comunidad','Municipio','Provincia','Departamento','Tipo','Lat','Lon','Población','%Agua','%SinSanea','%Elec','Score']];
+  coms.forEach(function(r){rows.push([r.com,r.mun,r.prov,r.dep,r.tipo,r.lat||'',r.lon||'',r.pT||0,pctAgua(r),pctSanea(r),pctElec(r),calcScore(r)]);});
+  var wb=XLSX.utils.book_new();var ws=XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,'Comunidades');
+  XLSX.writeFile(wb,(p.nombre||'Programa').replace(/[^a-zA-Z0-9]/g,'_')+'_INE.xlsx');
+};
+
+// ================================================================
+// EXPORT CSV / GEOJSON / KML
+// ================================================================
+window.exportCSV=function(){
+  var base=filtrados.length?filtrados:DATOS;
+  var esc=function(v){var s=String(v==null?'':v);return s.includes(',')?'"'+s.replace(/"/g,'""')+'"':s;};
+  var cols=[['Comunidad','com'],['Municipio','mun'],['Provincia','prov'],['Departamento','dep'],['Tipo','tipo'],['Lat','lat'],['Lon','lon'],['Población','pT'],['Agua cañería','aCan'],['Sin saneam.','snNo'],['Elec. pub','elPub']];
+  var csv=cols.map(function(c){return esc(c[0]);}).join(',')+'\n'+base.map(function(r){return cols.map(function(c){return esc(r[c[1]]);}).join(',');}).join('\n');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+  a.download='censo_'+(document.getElementById('fDep').value||'Bolivia')+'_'+base.length+'com.csv';a.click();
+};
+window.exportGeoJSON=function(){
+  var base=filtrados.length?filtrados:DATOS;
+  var gj={type:'FeatureCollection',features:base.filter(function(r){return r.lat&&r.lon;}).map(function(r){
+    return {type:'Feature',geometry:{type:'Point',coordinates:[r.lon,r.lat]},
+      properties:{nombre:r.com,municipio:r.mun,provincia:r.prov,departamento:r.dep,tipo:r.tipo,
+        poblacion:r.pT||0,pct_agua:pctAgua(r),pct_sin_sanea:pctSanea(r),score:calcScore(r)}};
+  })};
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(gj,null,2)],{type:'application/geo+json'}));
+  a.download='censo_bolivia.geojson';a.click();
+};
+window.exportKML=function(){
+  var base=filtrados.length?filtrados:DATOS;
+  var kml='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>Censo Bolivia</name>\n';
+  base.filter(function(r){return r.lat&&r.lon;}).forEach(function(r){
+    kml+='<Placemark><name>'+r.com.replace(/&/g,'&amp;')+'</name><description>'+r.mun+', '+r.dep+' | Pob:'+(r.pT||0)+' | Agua:'+pctAgua(r)+'%</description><Point><coordinates>'+r.lon+','+r.lat+',0</coordinates></Point></Placemark>\n';
+  });
+  kml+='</Document>\n</kml>';
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}));
+  a.download='censo_bolivia.kml';a.click();
+};
+
+// ================================================================
+// COMPARTIR IMAGEN
+// ================================================================
+window.compartirImg=function(){
+  if(!comActual||typeof html2canvas==='undefined')return;
+  html2canvas(document.getElementById('mBody'),{backgroundColor:'#f6f4ee',scale:2,useCORS:true,logging:false}).then(function(canvas){
+    canvas.toBlob(function(blob){
+      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([blob],'ficha.png',{type:'image/png'})]})){
+        navigator.share({title:comActual.com,files:[new File([blob],'ficha_censo.png',{type:'image/png'})]});
+      }else{
+        var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+        a.download=comActual.com.replace(/[^a-zA-Z0-9]/g,'_')+'_ficha.png';a.click();
+      }
+    },'image/png');
+  });
+};
+
+// ================================================================
+// SWIPE-DOWN PARA CERRAR MODAL (iPhone)
+// ================================================================
+(function(){
+  var card=document.getElementById('modalCard');if(!card)return;
+  var sy=0,drag=false;
+  card.addEventListener('touchstart',function(e){
+    var b=document.getElementById('mBody');
+    if(b&&b.scrollTop<=2){sy=e.touches[0].clientY;drag=true;}
+  },{passive:true});
+  card.addEventListener('touchmove',function(e){
+    if(!drag)return;var dy=e.touches[0].clientY-sy;
+    if(dy>0){card.style.cssText='transform:translateY('+Math.min(dy*.55,160)+'px);opacity:'+Math.max(1-dy/350,.5)+';transition:none';}
+  },{passive:true});
+  card.addEventListener('touchend',function(e){
+    if(!drag)return;drag=false;
+    var dy=e.changedTouches[0].clientY-sy;
+    card.style.transition='transform .2s,opacity .2s';
+    if(dy>100){card.style.transform='translateY(100%)';card.style.opacity='0';setTimeout(function(){cerrarModal();card.removeAttribute('style');},200);}
+    else card.removeAttribute('style');
+  },{passive:true});
+
+// ── Botones extras en programas (observer en vez de wrapper) ──────────
+function addProgExtras(){
+  // Botón plantillas
+  var bNuevo=document.querySelector('.btn-nuevo-prog');
+  if(bNuevo&&!document.getElementById('btnPlantillasX')){
+    var bp=document.createElement('button');
+    bp.id='btnPlantillasX';
+    bp.style.cssText='display:block;width:100%;margin-bottom:10px;padding:10px;border:1px solid var(--agua-l);border-radius:11px;background:var(--agua-l);color:var(--agua-d);font-weight:800;font-size:.81rem;cursor:pointer;-webkit-tap-highlight-color:transparent';
+    bp.textContent='📋 Crear desde plantilla';bp.onclick=mostrarPlantillas;
+    bNuevo.parentNode.insertBefore(bp,bNuevo);
+  }
+  // Botones import/export
+  var st=document.querySelector('#vProgramas .seccion-titulo');
+  if(st&&!document.getElementById('btnExpJSONX')){
+    var d=document.createElement('div');d.style='display:flex;gap:6px;align-items:center';
+    d.innerHTML='<button id="btnExpJSONX" onclick="exportProgJSON()" style="padding:4px 9px;border:1px solid var(--line);border-radius:7px;font-size:.71rem;color:var(--muted);background:var(--card);cursor:pointer">⬇ JSON</button>'
+      +'<label style="padding:4px 9px;border:1px solid var(--line);border-radius:7px;font-size:.71rem;color:var(--muted);background:var(--card);cursor:pointer">⬆ Importar<input type="file" accept=".json" style="display:none" onchange="importProgJSON(this)"></label>';
+    st.appendChild(d);
+  }
+  // Botones duplicar+excel en cada tarjeta
+  document.querySelectorAll('.prog-card').forEach(function(card){
+    if(card.querySelector('.prog-dup-btn'))return;
+    var del=card.querySelector('.prog-card-del');if(!del)return;
+    var m=del.getAttribute('onclick');if(!m)return;
+    var id2=m.match(/'([^']+)'/);if(!id2)return;id2=id2[1];
+    var d2=document.createElement('button');
+    d2.className='prog-card-del prog-dup-btn';d2.title='Duplicar';d2.textContent='⎘';
+    d2.onclick=function(e){e.stopPropagation();dupProg(id2);};
+    var xe=document.createElement('button');
+    xe.className='prog-card-del';xe.style.fontSize='.67rem';xe.title='Excel';xe.textContent='📊';
+    xe.onclick=function(e){e.stopPropagation();expProgExcel(id2);};
+    del.parentNode.insertBefore(d2,del);del.parentNode.insertBefore(xe,del);
+  });
+}
+// Sobrescribir cambiarVista para añadir extras cuando se va a programas
+var _cvBase=window.cambiarVista;
+window.cambiarVista=function(v){
+  _cvBase(v);
+  if(v==='programas') setTimeout(addProgExtras,300);
+};
+
+})();
+
+// ================================================================
+// INIT — ejecutar cuando el DOM esté listo
+// ================================================================
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',function(){injectHTML();wrapFunctions();});
+}else{
+  injectHTML();wrapFunctions();
+}
+
+})();
+
+</script>
+</body>
+</html>
