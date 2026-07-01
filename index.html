@@ -2264,70 +2264,55 @@ cargar();
 
 <script>
 /* ================================================================
-   CensoBolivia — Features adicionales
-   Se cargan DESPUÉS del script principal, sin modificar el original
+   CensoBolivia App — features_full.js  (versión final completa)
    ================================================================ */
 (function(){
 'use strict';
 
-// ── Globals ──────────────────────────────────────────────────────
-var scatterInst=null, capaSat=null, capaHeat=null, miniMap=null;
-var medirOn=false, medirPtoA=null, medirLinea=null;
-var lazoOn=false, lazoRect=null, lazoPtoA=null;
-var radioWait=false, radioKm=10;
+/* ── helpers ── */
+function cId(r){return r.mun+'|||'+r.com;}
+function norm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+function fmtM(n){return n>=1e6?(n/1e6).toFixed(2)+' MM Bs':n>=1e3?(n/1e3).toFixed(0)+' K Bs':n.toLocaleString()+' Bs';}
+function hv(a,b){var R=6371,dL=(b[0]-a[0])*Math.PI/180,dN=(b[1]-a[1])*Math.PI/180,s=Math.sin(dL/2)*Math.sin(dL/2)+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dN/2)*Math.sin(dN/2);return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
+function pctA(r){var t=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);return t?Math.round(((r.aCan||0)+(r.aPil||0))/t*100):0;}
+function pctS(r){var t=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);return t?Math.round((r.snNo||0)/t*100):100;}
+function pctE(r){var t=(r.elPub||0)+(r.elNo||0);return t?Math.round((r.elPub||0)/t*100):0;}
+function scoreR(r){return Math.min(100,Math.round(((100-pctA(r))*.40+pctS(r)*.35+(100-pctE(r))*.15)*((r.pT||0)<50?1.15:(r.pT||0)<200?1.0:.88)));}
+function semBg(v,inv){return !inv?(v>=60?'#e8f4e0':v>=30?'#fef3dc':'#fde8e8'):(v<=25?'#e8f4e0':v<=60?'#fef3dc':'#fde8e8');}
+function semCl(v,inv){return !inv?(v>=60?'#2a6a18':v>=30?'#7a4f00':'#8a1a1a'):(v<=25?'#2a6a18':v<=60?'#7a4f00':'#8a1a1a');}
+function pill(sc){var bg=sc>=60?'#fde8e8':sc>=30?'#fef3dc':'#e8f4e0',co=sc>=60?'#8a1a1a':sc>=30?'#7a4f00':'#1a6a30';return '<span style="padding:2px 8px;border-radius:7px;font-size:.66rem;font-weight:800;background:'+bg+';color:'+co+'">'+sc+'/100</span>';}
+function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function $id(id){return document.getElementById(id);}
+function $q(s){return document.querySelector(s);}
+
+/* ── globals ── */
+var capaHeat=null,capaSat=null,capaPOI=null,miniMapObj=null,scatterCh=null;
+var medirOn=false,medirA=null,medirLine=null;
+var radioWait=false,radioKm=10;
+var lazoOn=false,lazoA=null,lazoRect=null;
+var poiMode=false,poiLat=null,poiLon=null;
 var condsFAv=[{ind:'_agua',op:'<',val:50}];
 
-// ── Helpers ───────────────────────────────────────────────────────
-function cId(r){ return r.mun+'|||'+r.com; }
-function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
-function fmtM(n){ return n>=1e6?(n/1e6).toFixed(2)+' MM Bs':n>=1e3?(n/1e3).toFixed(0)+' K Bs':n.toLocaleString()+' Bs'; }
-function hv(a,b){
-  var R=6371,dL=(b[0]-a[0])*Math.PI/180,dN=(b[1]-a[1])*Math.PI/180;
-  var s=Math.sin(dL/2)*Math.sin(dL/2)+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dN/2)*Math.sin(dN/2);
-  return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
-}
-function calcScore(r){
-  var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
-  var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
-  var et=(r.elPub||0)+(r.elNo||0);
-  var pA=at?Math.round(((r.aCan||0)+(r.aPil||0))/at*100):0;
-  var pS=st?Math.round((r.snNo||0)/st*100):100;
-  var pE=et?Math.round((r.elPub||0)/et*100):0;
-  return Math.min(100,Math.round(((100-pA)*0.40+pS*0.35+(100-pE)*0.15)*((r.pT||0)<50?1.15:(r.pT||0)<200?1.0:0.88)));
-}
-function pctAgua(r){var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);return at?Math.round(((r.aCan||0)+(r.aPil||0))/at*100):0;}
-function pctSanea(r){var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);return st?Math.round((r.snNo||0)/st*100):100;}
-function pctElec(r){var et=(r.elPub||0)+(r.elNo||0);return et?Math.round((r.elPub||0)/et*100):0;}
-function semCls(v,inv){ return !inv?(v>=60?'v':v>=30?'n':'r'):(v<=25?'v':v<=60?'n':'r'); }
-function scorePill(sc){ var cl=sc>=60?'r':sc>=30?'n':'v'; return '<span style="padding:2px 8px;border-radius:7px;font-size:.66rem;font-weight:800;background:'+(cl==='r'?'#fde8e8':cl==='n'?'#fef3dc':'#e8f4e0')+';color:'+(cl==='r'?'#8a1a1a':cl==='n'?'#7a4f00':'#1a6a30')+'">'+sc+'/100</span>'; }
-
-// ── LS helpers ────────────────────────────────────────────────────
-function lsGet(k){ try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;} }
-function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
-
-// ================================================================
-// CSS
-// ================================================================
-var style=document.createElement('style');
-style.textContent=`
+/* ════════════════════ CSS ════════════════════ */
+var sty=document.createElement('style');
+sty.textContent=`
 @media(prefers-color-scheme:dark){
-  :root{--ink:#ddd8c4;--paper:#181c19;--card:#1f2520;--line:#2a302c;
-    --agua:#3ab0c8;--agua-d:#2d95ac;--agua-l:#0d2f38;
-    --tierra:#d4845a;--verde:#7ab54e;--sol:#e8b930;--rojo:#e05a4a;--muted:#7a8a7e}
+  :root{--ink:#ddd8c4;--paper:#181c19;--card:#1f2520;--line:#2a302c;--agua:#3ab0c8;--agua-d:#2d95ac;--agua-l:#0d2f38;--tierra:#d4845a;--verde:#7ab54e;--sol:#e8b930;--rojo:#e05a4a;--muted:#7a8a7e}
   header{background:linear-gradient(135deg,#1a4d59,#0f3340)!important}
   .campo select,.campo input{background:var(--card);color:var(--ink);border-color:var(--line)}
   .leaflet-tile{filter:brightness(.82) saturate(.9)}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--ink)}
 }
-/* Botón cerrar GRANDE */
-.modal-close{width:54px!important;height:54px!important;font-size:1.4rem!important;
-  font-weight:800!important;box-shadow:0 2px 8px rgba(0,0,0,.15)!important;
-  -webkit-tap-highlight-color:transparent!important;touch-action:manipulation!important}
+/* close btn 56px iPhone */
+.modal-close{width:56px!important;height:56px!important;font-size:1.5rem!important;font-weight:800!important;
+  position:absolute!important;top:7px!important;right:9px!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.15)!important;-webkit-tap-highlight-color:transparent!important}
 .modal-close:active{transform:scale(.9)}
-.modal-handle-wrap{min-height:52px!important;padding:14px 0 5px!important}
-.modal-foot{flex-wrap:wrap!important;gap:6px!important;
-  padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))!important}
-/* Dashboard */
+.modal-handle-wrap{min-height:52px!important;padding:13px 0 4px!important}
+.modal-foot{flex-wrap:wrap!important;gap:6px!important;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))!important}
+.modal-foot button{min-height:46px!important;-webkit-tap-highlight-color:transparent!important}
+/* dashboard */
 #vInicio{display:none;flex-direction:column;overflow-y:auto;
   padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
 #vInicio.activa{display:flex}
@@ -2335,86 +2320,93 @@ style.textContent=`
 .d-kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;text-align:center}
 .d-kpi-v{font-size:1.5rem;font-weight:800;color:var(--agua);line-height:1}
 .d-kpi-l{font-size:.6rem;color:var(--muted);margin-top:4px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-.d-sec{font-size:.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 7px}
+.d-sec{font-size:.67rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 7px}
 .d-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-.d-btn{padding:11px 7px;border-radius:12px;border:1px solid var(--line);background:var(--card);
-  font-size:.72rem;font-weight:700;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent}
+.d-btn{padding:12px 7px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:.72rem;font-weight:700;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent}
 .d-btn span:first-child{font-size:1.35rem}
-.d-item{display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--card);
-  border-radius:10px;border:1px solid var(--line);margin-bottom:6px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.d-item{display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--card);border-radius:10px;border:1px solid var(--line);margin-bottom:6px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .d-ico{font-size:1rem;width:28px;text-align:center;flex:0 0 28px}
 .d-inf{flex:1;min-width:0}
 .d-nom{font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
 .d-sub{font-size:.68rem;color:var(--muted);margin-top:1px}
-/* Controles mapa */
-.xbtn{background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:3px}
-.mapa-btn{width:44px;height:44px;border-radius:50%;background:var(--card);border:1px solid var(--line);
-  box-shadow:0 2px 8px rgba(0,0,0,.1);display:flex;align-items:center;justify-content:center;
-  font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+/* mapa controles z>leaflet */
+.mapa-btn{width:44px;height:44px;border-radius:50%;background:rgba(255,253,250,.96);border:1px solid var(--line);
+  box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;backdrop-filter:blur(4px)}
 .mapa-btn.on{background:var(--agua);color:#fff;border-color:var(--agua)}
-.mapa-bar{position:absolute;left:10px;right:10px;z-index:31;background:rgba(255,253,250,.96);
-  backdrop-filter:blur(6px);border-radius:10px;padding:8px 12px;box-shadow:var(--shadow);
-  font-size:.76rem;font-weight:600;color:var(--agua-d);display:none}
-.mapa-bar.vis{display:flex;align-items:center;gap:8px}
-.mapa-bar select{font-size:.78rem;padding:4px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink)}
-.ley{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
-.ley-i{display:flex;align-items:center;gap:3px;font-size:.63rem;color:var(--muted)}
+.ctrl-wrap{position:absolute;bottom:14px;right:10px;z-index:1000;display:flex;flex-direction:column;gap:7px}
+.mapa-bar{position:absolute;left:10px;right:10px;z-index:1001;background:rgba(255,253,250,.97);
+  backdrop-filter:blur(6px);border-radius:10px;padding:9px 13px;box-shadow:0 2px 12px rgba(0,0,0,.12);display:none}
+.mapa-bar.vis{display:block}
+.mapa-bar label{font-size:.61rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.mapa-bar select{font-size:.78rem;padding:4px 7px;border:1px solid var(--line);border-radius:7px;
+  background:var(--card);color:var(--ink);margin-top:4px;width:100%}
+.ley{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.ley-i{display:flex;align-items:center;gap:3px;font-size:.62rem;color:var(--muted)}
 .ley-d{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+.tool-info{position:absolute;left:10px;right:10px;z-index:1001;background:var(--agua);color:#fff;
+  border-radius:10px;padding:9px 13px;font-size:.8rem;font-weight:700;display:none;
+  align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+.tool-info.vis{display:flex}
 .fav-bdg{position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:var(--sol);
   border-radius:50%;font-size:.48rem;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
-/* Panel flotante */
-.pnl-overlay{position:fixed;inset:0;background:rgba(19,32,28,.55);z-index:850;display:none;
-  flex-direction:column;align-items:stretch;padding:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
-.pnl-overlay.activo{display:flex}
-.pnl-card{background:var(--paper);border-radius:16px;flex:1;display:flex;flex-direction:column;overflow:hidden;max-height:94vh}
-.pnl-head{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
-.pnl-body{flex:1;overflow-y:auto;padding:11px 13px;-webkit-overflow-scrolling:touch}
-/* Panel rápido */
-.pr-fondo{position:fixed;inset:0;background:rgba(19,32,28,.5);z-index:800;display:none;align-items:flex-end}
-.pr-fondo.activo{display:flex}
-.pr-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:70vh;display:flex;flex-direction:column}
+.coord-bar{position:absolute;left:10px;right:60px;z-index:1001;display:none}
+.coord-bar.vis{display:block}
+.coord-inner{display:flex;gap:5px;align-items:center;background:rgba(255,253,250,.97);
+  border-radius:9px;border:1px solid var(--line);padding:6px 10px;backdrop-filter:blur(6px);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.coord-inner input{flex:1;border:none;background:transparent;font-size:.78rem;color:var(--ink);padding:2px 0;min-width:0}
+.coord-inner input:focus{outline:none}
+.coord-inner button{background:none;border:none;font-size:.9rem;color:var(--agua);cursor:pointer;padding:2px}
+/* panels bottom sheet */
+.pnl-ov{position:fixed;inset:0;background:rgba(19,32,28,.55);z-index:850;display:none;align-items:flex-end}
+.pnl-ov.activo{display:flex}
+.pnl-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:88vh;
+  display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(19,32,28,.3);
+  padding-bottom:env(safe-area-inset-bottom,0)}
+.pnl-handle{width:44px;height:5px;background:var(--line);border-radius:3px;margin:12px auto 0;flex-shrink:0}
+.pnl-head{padding:10px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.pnl-body{flex:1;overflow-y:auto;padding:12px 14px;-webkit-overflow-scrolling:touch}
+.pnl-foot{padding:10px 14px;border-top:1px solid var(--line);flex-shrink:0}
+.btn-cerrar-pnl{width:100%;padding:14px;background:var(--line);border:none;border-radius:12px;
+  font-size:.9rem;font-weight:800;color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
+/* panel rapido */
+.pr-ov{position:fixed;inset:0;background:rgba(19,32,28,.5);z-index:800;display:none;align-items:flex-end}
+.pr-ov.activo{display:flex}
+.pr-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:70vh;
+  display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)}
 .pr-head{padding:10px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:.9rem}
 .pr-body{overflow-y:auto;flex:1;padding:10px 13px;-webkit-overflow-scrolling:touch}
 .pr-item{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
 .pr-item:last-child{border-bottom:none}
-/* Modo campo */
+/* modo campo */
 .campo-ov{position:fixed;inset:0;z-index:960;background:var(--paper);display:none;flex-direction:column}
 .campo-ov.activo{display:flex}
-.campo-hdr{background:var(--agua);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 14px;
-  display:flex;align-items:flex-start;justify-content:space-between}
+.campo-hdr{background:var(--agua);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 14px;display:flex;align-items:flex-start;justify-content:space-between}
 .campo-nom{font-size:1.35rem;font-weight:800;line-height:1.2;flex:1;margin-right:8px}
 .campo-body{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:11px;padding:14px}
 .campo-sems{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .c-sem{border-radius:14px;padding:13px 6px;display:flex;flex-direction:column;align-items:center;gap:4px}
-.c-sem.v{background:#e8f4e0}.c-sem.n{background:#fef3dc}.c-sem.r{background:#fde8e8}
 .c-sem-p{font-size:1.45rem;font-weight:900}
-.c-sem.v .c-sem-p{color:#2a6a18}.c-sem.n .c-sem-p{color:#7a4f00}.c-sem.r .c-sem-p{color:#8a1a1a}
 .c-sem-l{font-size:.57rem;font-weight:700;text-transform:uppercase;color:var(--muted);text-align:center}
 .campo-btns{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
-.c-btn{padding:15px 8px;border-radius:14px;border:none;font-size:.84rem;font-weight:800;
-  display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.c-btn{padding:15px 8px;border-radius:14px;border:none;font-size:.84rem;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .c-btn span:first-child{font-size:1.65rem}
-.c-btn-nota{background:var(--agua);color:#fff}.c-btn-fav{background:var(--card);border:1px solid var(--line);color:var(--ink)}
-.c-btn-pdf{background:var(--tierra);color:#fff}.c-btn-back{background:var(--line);color:var(--ink)}
-/* Notas */
+/* notas */
 .notas-ov{position:fixed;inset:0;z-index:870;background:rgba(19,32,28,.5);display:none;align-items:flex-end}
 .notas-ov.activo{display:flex}
-.notas-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:80vh;
-  display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)}
+.notas-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:80vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)}
 .notas-head{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
 .notas-body{flex:1;overflow-y:auto;padding:10px 13px;-webkit-overflow-scrolling:touch}
 .nota-g{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 11px;margin-bottom:6px}
 .nota-g-t{font-size:.81rem;color:var(--ink);white-space:pre-wrap;word-break:break-word}
 .nota-g-m{font-size:.61rem;color:var(--muted);margin-top:3px;display:flex;justify-content:space-between}
 .notas-new{padding:8px 13px;border-top:1px solid var(--line);display:flex;gap:7px;align-items:flex-end}
-.notas-new textarea{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:9px;
-  font-size:.8rem;resize:none;min-height:36px;font-family:inherit;background:var(--paper);color:var(--ink)}
+.notas-new textarea{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:9px;font-size:.8rem;resize:none;min-height:36px;font-family:inherit;background:var(--paper);color:var(--ink)}
 .notas-new button{padding:8px 13px;background:var(--agua);color:#fff;border:none;border-radius:9px;font-weight:800;font-size:.8rem}
-/* Calculadora */
+/* calc */
 .calc-ov{position:fixed;inset:0;z-index:870;background:rgba(19,32,28,.5);display:none;align-items:flex-end}
 .calc-ov.activo{display:flex}
-.calc-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:80vh;
-  display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)}
+.calc-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:80vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)}
 .calc-head{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
 .calc-body{flex:1;overflow-y:auto;padding:13px}
 .calc-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
@@ -2422,951 +2414,486 @@ style.textContent=`
 .calc-row input{width:88px;padding:6px 7px;border:1px solid var(--line);border-radius:8px;font-size:.8rem;text-align:right;background:var(--card);color:var(--ink)}
 .calc-res{background:var(--agua-l);border-radius:11px;padding:12px;margin-top:8px}
 .calc-tot{font-size:1.25rem;font-weight:800;color:var(--agua-d)}
-/* Autocomplete */
+/* poi */
+.poi-ov{position:fixed;inset:0;z-index:920;background:rgba(19,32,28,.55);display:none;align-items:flex-end}
+.poi-ov.activo{display:flex}
+.poi-card{background:var(--paper);border-radius:18px 18px 0 0;width:100%;padding:15px 15px calc(15px + env(safe-area-inset-bottom,0px))}
+.poi-field{margin-bottom:9px;display:flex;flex-direction:column;gap:3px}
+.poi-field label{font-size:.71rem;font-weight:700;color:var(--muted)}
+.poi-field input,.poi-field select,.poi-field textarea{padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:.81rem;background:var(--paper);color:var(--ink)}
+.poi-btns{display:flex;gap:8px;margin-top:10px}
+.poi-btns button{flex:1;padding:11px;border-radius:10px;font-weight:800;font-size:.83rem;border:none}
+/* autocomplete */
 .ac-wrap{position:relative;flex:1}
-.ac-list{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--line);
-  border-radius:0 0 10px 10px;z-index:200;max-height:185px;overflow-y:auto;box-shadow:var(--shadow);display:none}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:0 0 10px 10px;z-index:200;max-height:185px;overflow-y:auto;box-shadow:var(--shadow);display:none}
 .ac-list.vis{display:block}
 .ac-item{padding:8px 11px;font-size:.79rem;cursor:pointer;border-bottom:1px solid var(--line)}
 .ac-item:last-child{border-bottom:none}
 .ac-com{font-weight:600;color:var(--ink)}.ac-mun{font-size:.66rem;color:var(--muted)}
-/* Botones header */
-.hdr-btn{background:rgba(255,255,255,.2);border:none;border-radius:50%;width:34px;height:34px;
-  display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;position:relative;color:#fff;
-  -webkit-tap-highlight-color:transparent}
-.hdr-bdg{position:absolute;top:-3px;right:-3px;width:13px;height:13px;background:var(--sol);
-  border-radius:50%;font-size:.48rem;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
-/* Mini-mapa */
+/* mini mapa */
 #miniMapW{height:162px;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px;display:none}
-/* CSV btn */
+/* hdr btn */
+.hdr-btn{background:rgba(255,255,255,.2);border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;position:relative;color:#fff;-webkit-tap-highlight-color:transparent}
+.hdr-bdg{position:absolute;top:-3px;right:-3px;width:13px;height:13px;background:var(--sol);border-radius:50%;font-size:.48rem;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+/* csv btn */
 .btn-csv{padding:5px 10px;border:1px solid var(--verde);border-radius:7px;font-size:.72rem;font-weight:700;color:var(--verde);background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent}
-/* Estado prog */
-.est-b{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:8px;font-size:.64rem;font-weight:700;cursor:pointer}
+/* estado prog */
+.est-b{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:8px;font-size:.64rem;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .est-P{background:#fde8e8;color:#8a1a1a}.est-C{background:#fef3dc;color:#7a4f00}
 .est-D{background:#e8f4e0;color:#1a6a30}.est-X{background:#deeef2;color:#0d5a6e}
-/* Score */
-.sc-r{background:#fde8e8;color:#8a1a1a}.sc-n{background:#fef3dc;color:#7a4f00}.sc-v{background:#e8f4e0;color:#1a6a30}
-/* Print */
 @media print{
-  header,.tabs,.filtros,.modal-foot,#vMapa,#vInicio,#vProgramas,
-  .pr-fondo,.campo-ov,.notas-ov,.calc-ov,.pnl-overlay{display:none!important}
-  body,#vLista{background:#fff}
-  #vLista{display:block!important;padding:8px}
+  header,.tabs,.filtros,.modal-foot,#vMapa,#vInicio,#vProgramas,.pr-ov,.campo-ov,.notas-ov,.calc-ov,.pnl-ov,.poi-ov{display:none!important}
+  body,#vLista{background:#fff}#vLista{display:block!important;padding:8px}
 }`;
-document.head.appendChild(style);
+document.head.appendChild(sty);
 
-// ================================================================
-// INYECTAR HTML
-// ================================================================
+/* ════════════════════ HTML ════════════════════ */
 function injectHTML(){
-  // 1. Tab Inicio
-  var tabMapa=document.getElementById('tabMapa');
-  if(tabMapa&&!document.getElementById('tabInicio')){
-    var ti=document.createElement('button');
-    ti.className='tab';ti.id='tabInicio';ti.textContent='🏠 Inicio';
+  /* tab Inicio */
+  var tabMapa=$id('tabMapa');
+  if(tabMapa&&!$id('tabInicio')){
+    var ti=document.createElement('button');ti.className='tab';ti.id='tabInicio';ti.textContent='🏠 Inicio';
     ti.onclick=function(){cambiarVista('inicio');};
     tabMapa.parentNode.insertBefore(ti,tabMapa);
   }
-
-  // 2. Botones en header (notas + alertas)
-  var h1=document.querySelector('header h1');
-  if(h1&&!document.getElementById('btnNotas')){
-    var wrap=document.createElement('div');
-    wrap.style.cssText='display:flex;align-items:center;justify-content:space-between;width:100%';
-    var hBtns=document.createElement('div');hBtns.style='display:flex;gap:7px';
-    hBtns.innerHTML='<button class="hdr-btn" id="btnNotas" onclick="abrirNotas()" title="Notas">📒<span class="hdr-bdg" id="notasBdg" style="display:none">0</span></button>'
-      +'<button class="hdr-btn" id="btnAlertasHdr" onclick="abrirAlertas()" title="Alertas">🚩<span class="hdr-bdg" id="alertaBdg" style="background:var(--rojo);display:none">0</span></button>';
-    wrap.appendChild(h1.cloneNode(true));wrap.appendChild(hBtns);
-    h1.parentNode.replaceChild(wrap,h1);
+  /* botones header */
+  var h1=$q('header h1');
+  if(h1&&!$id('btnNotas')){
+    var hw=document.createElement('div');hw.style.cssText='display:flex;align-items:center;justify-content:space-between;width:100%';
+    var hb=document.createElement('div');hb.style='display:flex;gap:7px';
+    hb.innerHTML='<button class="hdr-btn" id="btnNotas" onclick="abrirNotas()" title="Notas">📒<span class="hdr-bdg" id="notasBdg" style="display:none">0</span></button>'+
+      '<button class="hdr-btn" onclick="abrirAlertas()" title="Alertas">🚩<span class="hdr-bdg" id="alertaBdg" style="background:var(--rojo);display:none">0</span></button>';
+    hw.appendChild(h1.cloneNode(true));hw.appendChild(hb);h1.parentNode.replaceChild(hw,h1);
   }
-
-  // 3. Vista Inicio
-  if(!document.getElementById('vInicio')){
+  /* vista inicio */
+  if(!$id('vInicio')){
     var vi=document.createElement('div');vi.id='vInicio';
-    vi.innerHTML=
-      '<div class="d-kpis" id="dKpis"></div>'+
+    vi.innerHTML='<div class="d-kpis" id="dKpis"><div style="grid-column:1/-1;color:var(--muted);font-size:.8rem;text-align:center">Cargando…</div></div>'+
       '<div class="d-grid">'+
         '<div class="d-btn" onclick="abrirScatter()"><span>📈</span><span>Scatter agua/sanea.</span></div>'+
         '<div class="d-btn" onclick="abrirBrechas()"><span>📉</span><span>Brecha departamental</span></div>'+
         '<div class="d-btn" onclick="abrirRanking()"><span>🏆</span><span>Ranking prioridad</span></div>'+
+        '<div class="d-btn" onclick="abrirFiltroAv()"><span>🔬</span><span>Filtro avanzado</span></div>'+
         '<div class="d-btn" onclick="abrirCalc()"><span>💰</span><span>Calc. inversión</span></div>'+
-        '<div class="d-btn" onclick="exportGeoJSON()"><span>🌐</span><span>Export GeoJSON</span></div>'+
-        '<div class="d-btn" onclick="exportKML()"><span>🗺️</span><span>Export KML</span></div>'+
+        '<div class="d-btn" onclick="exportGeoJSON()"><span>🌐</span><span>GeoJSON</span></div>'+
+        '<div class="d-btn" onclick="exportKML()"><span>🗺️</span><span>KML</span></div>'+
+        '<div class="d-btn" onclick="exportCSV()"><span>⬇</span><span>CSV</span></div>'+
       '</div>'+
       '<div class="d-sec">Programas recientes</div><div id="dProgs"></div>'+
       '<div class="d-sec">Fichas recientes</div><div id="dRecientes"></div>';
-    var vMapa=document.getElementById('vMapa');
-    vMapa.parentNode.insertBefore(vi,vMapa);
+    $id('vMapa').parentNode.insertBefore(vi,$id('vMapa'));
   }
-
-  // 4. Controles mapa
-  var mapaEl=document.getElementById('mapaEl');
-  var vMapa=document.getElementById('vMapa');
-  if(mapaEl&&vMapa&&!document.getElementById('mapaColorBar')){
-    // Color bar
-    var cb=document.createElement('div');cb.className='mapa-bar';cb.id='mapaColorBar';
-    cb.style.cssText='top:54px;z-index:1001;position:absolute;left:10px;right:10px';
-    cb.innerHTML='<div style="display:flex;flex-direction:column;gap:5px;width:100%">'
-      +'<label style="font-size:.61rem;font-weight:700;color:var(--muted);text-transform:uppercase">Color por</label>'
-      +'<select id="colorMode" onchange="actualizarColorMapa()">'
-        +'<option value="tipo">Tipo (dispersa / amanzanada)</option>'
-        +'<option value="agua">% agua potable segura</option>'
-        +'<option value="sanea">% sin saneamiento</option>'
-        +'<option value="pob">Tamaño de población</option>'
-      +'</select>'
-      +'<div class="ley" id="mapaLey"></div></div>';
-    vMapa.appendChild(cb);
-    // Tool bar
-    var tb=document.createElement('div');tb.className='mapa-bar';tb.id='mapaToolBar';
-    tb.style.cssText='top:54px;z-index:1001;position:absolute;left:10px;right:10px';
-    tb.innerHTML='<span id="mapaToolTxt">—</span>'
-      +'<input type="number" id="radioKmInp" value="10" min="1" max="500" style="display:none;width:60px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;font-size:.77rem">'
-      +'<button id="radioOkBtn" onclick="confirmarRadio()" style="display:none;padding:3px 10px;background:var(--agua);color:#fff;border:none;border-radius:6px;font-size:.74rem">OK</button>'
-      +'<button onclick="cancelTool()" style="margin-left:auto;background:none;border:none;font-size:1rem;color:var(--muted);cursor:pointer">✕</button>';
-    vMapa.appendChild(tb);
-    // Botones flotantes
-    var mc=document.createElement('div');mc.style.cssText='position:absolute;bottom:14px;right:10px;z-index:1000;display:flex;flex-direction:column;gap:7px';
+  /* controles mapa */
+  var vM=$id('vMapa');
+  if(vM&&!$id('ctrlWrap')){
+    var cb=document.createElement('div');cb.className='mapa-bar';cb.id='colorBar';cb.style.top='54px';
+    cb.innerHTML='<label>Color de puntos</label><select id="colorMode" onchange="actualizarColorMapa()">'+
+      '<option value="tipo">Tipo (dispersa / amanzanada)</option>'+
+      '<option value="agua">% agua potable segura</option>'+
+      '<option value="sanea">% sin saneamiento</option>'+
+      '<option value="pob">Tamaño de población</option>'+
+      '</select><div class="ley" id="mapaLey"></div>';
+    vM.appendChild(cb);
+    var tb=document.createElement('div');tb.className='mapa-bar';tb.id='toolBar';tb.style.top='54px';
+    tb.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+      '<span id="toolTxt">—</span>'+
+      '<input type="number" id="radioInp" value="10" min="1" max="500" style="display:none;width:65px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:.77rem">'+
+      '<button id="radioOkBtn" onclick="confirmarRadio()" style="display:none;padding:4px 12px;background:var(--agua);color:#fff;border:none;border-radius:6px;font-size:.76rem;font-weight:700">OK</button>'+
+      '<select id="heatMode" onchange="aplicarHeat()" style="display:none;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:.76rem;background:var(--card);color:var(--ink)">'+
+        '<option value="sinAgua">Sin agua potable</option>'+
+        '<option value="sinSanea">Sin saneamiento</option>'+
+        '<option value="pob">Densidad poblacional</option>'+
+      '</select>'+
+      '<button onclick="cancelTool()" style="margin-left:auto;background:none;border:none;font-size:1rem;color:rgba(255,255,255,.8);cursor:pointer">✕</button>'+
+      '</div>';
+    vM.appendChild(tb);
+    var cob=document.createElement('div');cob.className='coord-bar';cob.id='coordBar';
+    cob.innerHTML='<div class="coord-inner"><input type="text" id="coordInp" placeholder="-17.3891, -66.1568" onkeydown="if(event.key===\'Enter\')buscarCoords()"><button onclick="buscarCoords()">↗</button><button onclick="cerrarCoordBar()">✕</button></div>';
+    vM.appendChild(cob);
+    var mc=document.createElement('div');mc.className='ctrl-wrap';mc.id='ctrlWrap';
     mc.innerHTML=
-      '<button class="mapa-btn" title="Mi ubicación" onclick="miUbicacion()" id="btnGps">📍</button>'+
-      '<button class="mapa-btn" title="Color" onclick="toggleColorBar()" id="btnColor">🎨</button>'+
+      '<button class="mapa-btn" title="Mi ubicación GPS" onclick="miUbicacion()" id="btnGps">📍</button>'+
+      '<button class="mapa-btn" title="Color por indicador" onclick="toggleColorBar()" id="btnColor">🎨</button>'+
       '<div style="position:relative"><button class="mapa-btn" title="Favoritos" onclick="abrirPanel(\'favs\')">⭐</button><span class="fav-bdg" id="favBdg" style="display:none">0</span></div>'+
       '<button class="mapa-btn" title="Recientes" onclick="abrirPanel(\'hist\')">🕐</button>'+
-      '<button class="mapa-btn" title="Satelital" onclick="toggleSat()" id="btnSat">🛰️</button>'+
-      '<button class="mapa-btn" title="Heatmap" onclick="toggleHeat()" id="btnHeat">🔥</button>'+
-      '<button class="mapa-btn" title="Medir" onclick="toggleMedir()" id="btnMedir">📏</button>'+
-      '<button class="mapa-btn" title="Radio" onclick="iniciarRadio()" id="btnRadio">⭕</button>'+
-      '<button class="mapa-btn" title="Seleccionar área" onclick="iniciarLazo()" id="btnLazo">✏️</button>';
-    vMapa.appendChild(mc);
+      '<button class="mapa-btn" title="Satelital Esri" onclick="toggleSat()" id="btnSat">🛰️</button>'+
+      '<button class="mapa-btn" title="Mapa de calor" onclick="toggleHeat()" id="btnHeat">🔥</button>'+
+      '<button class="mapa-btn" title="Medir distancias" onclick="toggleMedir()" id="btnMedir">📏</button>'+
+      '<button class="mapa-btn" title="Radio de influencia" onclick="iniciarRadio()" id="btnRadio">⭕</button>'+
+      '<button class="mapa-btn" title="Seleccionar área" onclick="iniciarLazo()" id="btnLazo">✏️</button>'+
+      '<button class="mapa-btn" title="Buscar coordenadas" onclick="toggleCoordBar()">🔎</button>'+
+      '<button class="mapa-btn" title="Agregar POI" onclick="iniciarPOI()">📌</button>'+
+      '<button class="mapa-btn" title="Capturar mapa" onclick="capturarMapa()">🖼️</button>';
+    vM.appendChild(mc);
   }
-
-  // 5. Mini-mapa + botones en modal
-  if(!document.getElementById('miniMapW')){
-    var mb=document.getElementById('mBody');
-    if(mb){
-      var mw=document.createElement('div');mw.id='miniMapW';
-      mb.parentNode.insertBefore(mw,mb);
-    }
+  /* mini mapa ficha */
+  if(!$id('miniMapW')){var mb=$id('mBody');if(mb){var mw=document.createElement('div');mw.id='miniMapW';mb.parentNode.insertBefore(mw,mb);}}
+  /* botones extra modal */
+  var mF=$q('.modal-foot');
+  if(mF&&!$id('btnCampoF')){
+    var bf=document.createElement('button');bf.id='btnCampoF';bf.style.cssText='padding:10px 12px;border:1px solid var(--line);border-radius:11px;font-size:1.1rem;background:var(--card);color:var(--ink);cursor:pointer;min-height:46px;-webkit-tap-highlight-color:transparent';bf.textContent='🔦';bf.onclick=abrirCampo;
+    var bS=document.createElement('button');bS.className='btn-share';bS.style='background:var(--verde)';bS.textContent='🔍';bS.onclick=abrirSimilares;
+    var bI=document.createElement('button');bI.className='btn-share';bI.style='background:var(--sol)';bI.textContent='📸';bI.onclick=compartirImg;
+    var bA=document.createElement('button');bA.id='btnAlertaM';bA.style.cssText='padding:10px 11px;border:1px solid var(--line);border-radius:11px;font-size:.78rem;font-weight:700;background:var(--card);color:var(--ink);cursor:pointer;min-height:46px';bA.textContent='🏳️ Alertar';bA.onclick=toggleAlerta;
+    var pdfBtn=$id('btnPdf');if(pdfBtn)mF.insertBefore(bf,pdfBtn);mF.appendChild(bS);mF.appendChild(bI);mF.appendChild(bA);
   }
-
-  // 6. Botones extra en modal footer
-  var mFoot=document.querySelector('.modal-foot');
-  if(mFoot&&!document.getElementById('btnCampoTrig')){
-    var bf=document.createElement('button');
-    bf.id='btnCampoTrig';bf.title='Modo campo';
-    bf.style.cssText='padding:10px 11px;border:1px solid var(--line);border-radius:11px;font-size:1.1rem;font-weight:800;background:var(--card);color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-height:44px';
-    bf.textContent='🔦';bf.onclick=abrirCampo;
-    var btnPdf=document.getElementById('btnPdf');
-    if(btnPdf) mFoot.insertBefore(bf,btnPdf);
-    // Botones similares + imagen
-    var bSim=document.createElement('button');bSim.className='btn-share';bSim.style='background:var(--verde)';bSim.textContent='🔍';bSim.onclick=abrirSimilares;
-    var bImg=document.createElement('button');bImg.className='btn-share';bImg.style='background:var(--sol)';bImg.textContent='📸';bImg.onclick=compartirImg;
-    var bAl=document.createElement('button');bAl.id='btnAlertaM';
-    bAl.style.cssText='padding:10px 11px;border:1px solid var(--line);border-radius:11px;font-size:.78rem;font-weight:700;background:var(--card);color:var(--ink);cursor:pointer;min-height:44px';
-    bAl.textContent='🏳️ Alertar';bAl.onclick=toggleAlerta;
-    mFoot.appendChild(bSim);mFoot.appendChild(bImg);mFoot.appendChild(bAl);
+  /* overlays */
+  if(!$id('campoOv')){
+    var wrap=document.createElement('div');
+    wrap.innerHTML=
+    '<div class="campo-ov" id="campoOv">'+
+      '<div class="campo-hdr"><div style="flex:1"><div class="campo-nom" id="cNom">—</div><div style="font-size:.77rem;opacity:.8;margin-top:2px" id="cMeta">—</div></div>'+
+      '<button style="background:rgba(255,255,255,.2);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:1.2rem;cursor:pointer" onclick="cerrarCampo()">✕</button></div>'+
+      '<div class="campo-body">'+
+        '<div class="campo-sems" id="cSems"></div>'+
+        '<div id="cCoords" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px;align-items:center;gap:9px"><span style="font-size:1.3rem">📍</span><span style="font-size:.84rem;font-family:monospace;color:var(--agua-d);font-weight:600" id="cCoordsV"></span></div>'+
+        '<div style="background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px" id="cScore"></div>'+
+        '<div class="campo-btns">'+
+          '<button class="c-btn" style="background:var(--agua);color:#fff" onclick="cerrarCampo();setTimeout(function(){abrirPanelNota&&abrirPanelNota()},120)"><span>✏️</span><span>Nota de campo</span></button>'+
+          '<button class="c-btn" style="background:var(--card);border:1px solid var(--line);color:var(--ink)" id="cFavBtn" onclick="toggleFav();refreshCampo()"><span id="cFavIco">☆</span><span>Favorito</span></button>'+
+          '<button class="c-btn" style="background:var(--tierra);color:#fff" onclick="cerrarCampo();setTimeout(function(){abrirPreviaPDF&&abrirPreviaPDF()},120)"><span>📄</span><span>PDF</span></button>'+
+          '<button class="c-btn" style="background:var(--line);color:var(--ink)" onclick="cerrarCampo()"><span>←</span><span>Volver</span></button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="notas-ov" id="notasOv" onclick="if(event.target.id===\'notasOv\')cerrarNotas()">'+
+      '<div class="notas-card"><div class="notas-head"><span style="font-weight:700;font-size:.9rem">📒 Notas de campo</span><button onclick="cerrarNotas()" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer">✕</button></div>'+
+      '<div class="notas-body" id="notasBody"></div>'+
+      '<div class="notas-new"><textarea id="notaInp" placeholder="Nueva nota…" rows="2" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();guardarNota()}"></textarea><button onclick="guardarNota()">+</button></div></div>'+
+    '</div>'+
+    '<div class="calc-ov" id="calcOv" onclick="if(event.target.id===\'calcOv\')cerrarCalc()">'+
+      '<div class="calc-card"><div class="calc-head"><span style="font-weight:700;font-size:.9rem">💰 Calculadora inversión</span><button onclick="cerrarCalc()" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer">✕</button></div>'+
+      '<div class="calc-body">'+
+        '<div class="calc-row"><label>Costo/conexión agua (Bs)</label><input type="number" id="cCA" value="8500" oninput="recalcInv()"></div>'+
+        '<div class="calc-row"><label>Costo/unidad saneamiento (Bs)</label><input type="number" id="cCS" value="5200" oninput="recalcInv()"></div>'+
+        '<div class="calc-row"><label>Costo/conexión electricidad (Bs)</label><input type="number" id="cCE" value="4800" oninput="recalcInv()"></div>'+
+        '<div id="calcRes" class="calc-res" style="display:none"></div>'+
+      '</div></div>'+
+    '</div>'+
+    '<div class="poi-ov" id="poiOv" onclick="if(event.target.id===\'poiOv\')cerrarPOI()">'+
+      '<div class="poi-card">'+
+        '<div style="font-size:.95rem;font-weight:700;margin-bottom:11px">📌 Nuevo punto de interés</div>'+
+        '<div class="poi-field"><label>Nombre</label><input type="text" id="poiNom" placeholder="Ej: Captación Río Rocha"></div>'+
+        '<div class="poi-field"><label>Tipo</label><select id="poiTipo"><option value="captacion">💧 Captación</option><option value="naciente">🌊 Naciente</option><option value="obra">🏗️ Obra</option><option value="contam">⚠️ Contaminación</option><option value="com">🏘️ Comunidad NR</option><option value="otro">📌 Otro</option></select></div>'+
+        '<div class="poi-field"><label>Nota</label><textarea id="poiNota" rows="2" placeholder="Descripción…"></textarea></div>'+
+        '<div style="font-size:.7rem;color:var(--muted);margin-bottom:4px" id="poiLbl"></div>'+
+        '<div class="poi-btns"><button style="background:var(--line);color:var(--ink)" onclick="cerrarPOI()">Cancelar</button><button style="background:var(--agua);color:#fff" onclick="guardarPOI()">Guardar</button></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="pnl-ov" id="pnlOv" onclick="if(event.target.id===\'pnlOv\')cerrarPnl()">'+
+      '<div class="pnl-card"><div class="pnl-handle"></div><div class="pnl-head"><span id="pnlTit" style="font-weight:700;font-size:.9rem">—</span></div><div class="pnl-body" id="pnlBody"></div><div class="pnl-foot"><button class="btn-cerrar-pnl" onclick="cerrarPnl()">✕  Cerrar</button></div></div>'+
+    '</div>'+
+    '<div class="pr-ov" id="prOv" onclick="if(event.target.id===\'prOv\')cerrarPR()">'+
+      '<div class="pr-card"><div class="pr-head" id="prHead">—<button onclick="cerrarPR()" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer">✕</button></div><div class="pr-body" id="prBody"></div></div>'+
+    '</div>';
+    document.body.appendChild(wrap);
   }
-
-  // 7. Overlays
-  if(!document.getElementById('campoOv')){
-    var ovDiv=document.createElement('div');
-    ovDiv.innerHTML=
-    // Modo campo
-    '<div class="campo-ov" id="campoOv">'
-      +'<div class="campo-hdr"><div style="flex:1"><div class="campo-nom" id="cNom">—</div><div style="font-size:.77rem;opacity:.8;margin-top:2px" id="cMeta">—</div></div>'
-      +'<button style="background:rgba(255,255,255,.2);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:1.2rem;cursor:pointer" onclick="cerrarCampo()">✕</button></div>'
-      +'<div class="campo-body">'
-        +'<div class="campo-sems" id="cSems"></div>'
-        +'<div id="cCoords" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px;display:flex;align-items:center;gap:9px"><span style="font-size:1.3rem">📍</span><span style="font-size:.84rem;font-family:monospace;color:var(--agua-d);font-weight:600" id="cCoordsV"></span></div>'
-        +'<div style="background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px" id="cScore"></div>'
-        +'<div class="campo-btns">'
-          +'<button class="c-btn c-btn-nota" onclick="cerrarCampo();setTimeout(function(){abrirPanelNota&&abrirPanelNota()},120)"><span>✏️</span><span>Nota de campo</span></button>'
-          +'<button class="c-btn c-btn-fav" id="cFavBtn" onclick="toggleFav();refreshCampo()"><span id="cFavIco">☆</span><span>Favorito</span></button>'
-          +'<button class="c-btn c-btn-pdf" onclick="cerrarCampo();setTimeout(function(){abrirPreviaPDF&&abrirPreviaPDF()},120)"><span>📄</span><span>PDF</span></button>'
-          +'<button class="c-btn c-btn-back" onclick="cerrarCampo()"><span>←</span><span>Volver</span></button>'
-        +'</div>'
-      +'</div>'
-    +'</div>'
-    // Notas globales
-    +'<div class="notas-ov" id="notasOv" onclick="if(event.target.id===\'notasOv\')cerrarNotas()">'
-      +'<div class="notas-card"><div class="notas-head"><span style="font-weight:700;font-size:.9rem">📒 Notas de campo</span><button class="xbtn" onclick="cerrarNotas()">✕</button></div>'
-      +'<div class="notas-body" id="notasBody"></div>'
-      +'<div class="notas-new"><textarea id="notaInp" placeholder="Nueva nota…" rows="2" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();guardarNota()}"></textarea><button onclick="guardarNota()">+</button></div>'
-      +'</div>'
-    +'</div>'
-    // Calculadora
-    +'<div class="calc-ov" id="calcOv" onclick="if(event.target.id===\'calcOv\')cerrarCalc()">'
-      +'<div class="calc-card"><div class="calc-head"><span style="font-weight:700;font-size:.9rem">💰 Calculadora inversión</span><button class="xbtn" onclick="cerrarCalc()">✕</button></div>'
-      +'<div class="calc-body">'
-        +'<div class="calc-row"><label>Costo/conexión agua (Bs)</label><input type="number" id="cCA" value="8500" oninput="recalcInv()"></div>'
-        +'<div class="calc-row"><label>Costo/unidad saneamiento (Bs)</label><input type="number" id="cCS" value="5200" oninput="recalcInv()"></div>'
-        +'<div class="calc-row"><label>Costo/conexión electricidad (Bs)</label><input type="number" id="cCE" value="4800" oninput="recalcInv()"></div>'
-        +'<div id="calcRes" class="calc-res" style="display:none"></div>'
-      +'</div></div>'
-    +'</div>'
-    // Panel universal (scatter, brecha, ranking, similares, filtroAv, plantillas)
-    +'<div class="pnl-overlay" id="pnlOv" onclick="if(event.target.id===\'pnlOv\')cerrarPnl()">'
-      +'<div class="pnl-card"><div class="pnl-head"><span id="pnlTit" style="font-weight:700;font-size:.9rem">—</span><button class="xbtn" onclick="cerrarPnl()">✕</button></div>'
-      +'<div class="pnl-body" id="pnlBody"></div></div>'
-    +'</div>'
-    // Panel rápido (favs/hist)
-    +'<div class="pr-fondo" id="prFondo" onclick="if(event.target.id===\'prFondo\')cerrarPR()">'
-      +'<div class="pr-card"><div class="pr-head" id="prHead">—</div>'
-      +'<div class="pr-body" id="prBody"></div></div>'
-    +'</div>';
-    document.body.appendChild(ovDiv);
+  /* autocomplete */
+  var fB=$id('fBuscar');
+  if(fB&&!fB._ac){
+    fB._ac=true;var acL=document.createElement('div');acL.className='ac-list';acL.id='acList';
+    var aw=document.createElement('div');aw.className='ac-wrap';fB.parentNode.insertBefore(aw,fB);aw.appendChild(fB);aw.appendChild(acL);
+    fB.setAttribute('autocomplete','off');fB.addEventListener('input',function(){onSearch(this.value);});
+    fB.addEventListener('blur',function(){setTimeout(function(){var l=$id('acList');if(l)l.classList.remove('vis');},200);});
   }
-
-  // 8. CSV btn en lista
-  setTimeout(function(){
-    var secTit=document.querySelector('.seccion-titulo');
-    if(secTit&&!document.querySelector('.btn-csv')){
-      var bc=document.createElement('button');bc.className='btn-csv';bc.textContent='⬇ CSV';bc.onclick=exportCSV;
-      secTit.appendChild(bc);
-    }
-  },2000);
-
-  // 9. Autocomplete en búsqueda
-  var fBuscar=document.getElementById('fBuscar');
-  if(fBuscar&&!fBuscar._acReady){
-    fBuscar._acReady=true;
-    var acL=document.createElement('div');acL.className='ac-list';acL.id='acList';
-    var wrap2=document.createElement('div');wrap2.className='ac-wrap';
-    fBuscar.parentNode.insertBefore(wrap2,fBuscar);
-    wrap2.appendChild(fBuscar);wrap2.appendChild(acL);
-    fBuscar.setAttribute('autocomplete','off');
-    fBuscar.addEventListener('input',function(){onSearch(this.value);});
-    fBuscar.addEventListener('blur',function(){setTimeout(function(){var l=document.getElementById('acList');if(l)l.classList.remove('vis');},200);});
-  }
-
-  // 10. Botones en programa (duplicar, excel, import/export, plantillas)
-  // Se añaden dinámicamente cuando el usuario abre la vista de programas
+  /* csv btn */
+  setTimeout(function(){var st=$q('.seccion-titulo');if(st&&!$q('.btn-csv')){var bc=document.createElement('button');bc.className='btn-csv';bc.textContent='⬇ CSV';bc.onclick=exportCSV;st.appendChild(bc);}},2000);
 }
 
-// ================================================================
-// WRAP funciones existentes (seguro, se ejecuta después)
-// ================================================================
+/* ════════════════════ WRAPS ════════════════════ */
 function wrapFunctions(){
-  // cambiarVista → añadir 'inicio'
+  /* cambiarVista + inicio */
   var _cv=window.cambiarVista;
   window.cambiarVista=function(v){
-    var vi=document.getElementById('vInicio');
-    if(vi) vi.classList.remove('activa');
-    var ti=document.getElementById('tabInicio');
-    if(ti) ti.classList.remove('activo');
+    var vi=$id('vInicio'),ti=$id('tabInicio');
     if(v==='inicio'){
-      if(vi){vi.classList.add('activa');}
-      if(ti){ti.classList.add('activo');}
-      renderDashboard();
-    } else {
-      _cv(v);
-    }
+      ['vMapa','vLista','vProgramas'].forEach(function(id){var el=$id(id);if(el)el.classList.remove('activa');});
+      ['tabMapa','tabLista','tabProg'].forEach(function(id){var el=$id(id);if(el)el.classList.remove('activo');});
+      if(vi)vi.classList.add('activa');if(ti)ti.classList.add('activo');renderDashboard();
+    }else{if(vi)vi.classList.remove('activa');if(ti)ti.classList.remove('activo');_cv(v);}
+    if(v==='programas')setTimeout(addProgExtras,350);
   };
-
-  // abrirModal → añadir historial + mini-mapa + actualizar botón alerta/fav
+  /* abrirModal */
   var _am=window.abrirModal;
   window.abrirModal=function(idx){
-    _am(idx);
-    var r=DATOS[idx];if(!r)return;
-    addHist(r);
-    actualizarFavBtn();
-    var ba=document.getElementById('btnAlertaM');
-    if(ba){var al=lsGet('censo_al')||{};ba.textContent=al[cId(r)]?'🚩 Alertada':'🏳️ Alertar';}
+    _am(idx);var r=DATOS[idx];if(!r)return;
+    addHist(r);actualizarFavBtn();
+    var ba=$id('btnAlertaM');if(ba){var al=lsGet('censo_al')||{};ba.textContent=al[cId(r)]?'🚩 Alertada':'🏳️ Alertar';}
     setTimeout(function(){iniciarMiniMapa(r);},200);
   };
-
-  // cerrarModal → limpiar mini-mapa
+  /* cerrarModal */
   var _cm=window.cerrarModal;
   window.cerrarModal=function(){
-    _cm();
-    var w=document.getElementById('miniMapW');if(w){w.style.display='none';w.innerHTML='';}
-    if(miniMap){miniMap.remove();miniMap=null;}
+    _cm();var w=$id('miniMapW');if(w){w.style.display='none';w.innerHTML='';}if(miniMapObj){miniMapObj.remove();miniMapObj=null;}
   };
-
-  // pintarMapa: NO se wrappea para no romper el mapa original.
-  // La leyenda de color se actualiza independientemente.
-  var _origPM = window.pintarMapa;
-  window.pintarMapa = function(){
-    actualizarLeyenda();
-    _origPM();
-  };
-
-  // Programas: botones extras añadidos con delay tras cambio de vista
-  // (no se wrappea renderListaProgramas para no romper el flujo original)
-
-  // Conectar mapa clicks a herramientas cuando mapa está listo
-  var _initMapa=window.initMapa;
-  window.initMapa=function(){
-    _initMapa();
-    if(window.mapa){
-      mapa.on('click',function(e){
-        if(medirOn){
-          if(!medirPtoA){medirPtoA=[e.latlng.lat,e.latlng.lng];showToolBar('Toca punto B');}
-          else{
-            var d=hv(medirPtoA,[e.latlng.lat,e.latlng.lng]);
-            if(medirLinea)mapa.removeLayer(medirLinea);
-            medirLinea=L.polyline([medirPtoA,[e.latlng.lat,e.latlng.lng]],{color:'#c44536',weight:2,dashArray:'5,4'}).addTo(mapa);
-            L.popup().setLatLng(e.latlng).setContent('<b>'+d.toFixed(2)+' km</b>').openOn(mapa);
-            medirPtoA=null;showToolBar('Toca otro punto A');
-          }
-          return;
-        }
-        if(radioWait){
-          radioWait=false;cancelTool();
-          L.circle([e.latlng.lat,e.latlng.lng],{radius:radioKm*1000,color:'#1f7a8c',weight:2,fillOpacity:.07}).addTo(mapa)
-            .bindPopup('<b>'+DATOS.filter(function(r){return r.lat&&r.lon&&hv([e.latlng.lat,e.latlng.lng],[r.lat,r.lon])<=radioKm;}).length+' comunidades</b> en '+radioKm+' km').openPopup();
-          return;
-        }
-        if(lazoOn){
-          if(!lazoPtoA){lazoPtoA=e.latlng;showToolBar('Toca la esquina opuesta');}
-          else{
-            var bounds=L.latLngBounds(lazoPtoA,e.latlng);
-            if(lazoRect)mapa.removeLayer(lazoRect);
-            lazoRect=L.rectangle(bounds,{color:'#1f7a8c',weight:2,fillOpacity:.06}).addTo(mapa);
-            filtrados=DATOS.filter(function(r){return r.lat&&r.lon&&bounds.contains([r.lat,r.lon]);});
-            render();pintarMapa();
-            lazoRect.bindPopup('<b>'+filtrados.length+' comunidades</b> seleccionadas').openPopup();
-            lazoOn=false;lazoPtoA=null;document.getElementById('btnLazo').classList.remove('on');cancelTool();
-          }
-          return;
-        }
-      });
-    }
-  };
+  /* NO wrappeamos pintarMapa (capaClusters es let) */
+  /* click handler mapa con delay */
+  setTimeout(function(){
+    if(!window.mapa)return;
+    mapa.on('click',function(e){
+      var lat=e.latlng.lat,lon=e.latlng.lng;
+      if(poiMode){poiMode=false;poiLat=lat;poiLon=lon;$id('poiLbl').textContent='Ubicación: '+lat.toFixed(5)+', '+lon.toFixed(5);$id('poiOv').classList.add('activo');return;}
+      if(medirOn){if(!medirA){medirA=[lat,lon];showTool('Toca punto B');}else{var d=hv(medirA,[lat,lon]);if(medirLine)mapa.removeLayer(medirLine);medirLine=L.polyline([medirA,[lat,lon]],{color:'#c44536',weight:2,dashArray:'5,4'}).addTo(mapa);L.popup().setLatLng(e.latlng).setContent('<b>'+d.toFixed(2)+' km</b>').openOn(mapa);medirA=null;showTool('Toca otro punto A');}return;}
+      if(radioWait){radioWait=false;cancelTool();var dentro=DATOS.filter(function(r){return r.lat&&r.lon&&hv([lat,lon],[r.lat,r.lon])<=radioKm;});L.circle([lat,lon],{radius:radioKm*1000,color:'#1f7a8c',weight:2,fillOpacity:.07}).addTo(mapa).bindPopup('<b>'+dentro.length+' comunidades</b> en '+radioKm+' km').openPopup();return;}
+      if(lazoOn){if(!lazoA){lazoA=e.latlng;showTool('Toca la esquina opuesta');}else{var b=L.latLngBounds(lazoA,e.latlng);if(lazoRect)mapa.removeLayer(lazoRect);lazoRect=L.rectangle(b,{color:'#1f7a8c',weight:2,fillOpacity:.06}).addTo(mapa);filtrados=DATOS.filter(function(r){return r.lat&&r.lon&&b.contains([r.lat,r.lon]);});render();pintarMapa();lazoRect.bindPopup('<b>'+filtrados.length+' comunidades</b> seleccionadas').openPopup();lazoOn=false;lazoA=null;$id('btnLazo').classList.remove('on');cancelTool();}return;}
+    });
+  },2500);
+  /* renderListaProgramas */
+  var _rp=window.renderListaProgramas;
+  window.renderListaProgramas=function(){_rp();setTimeout(addProgExtras,350);};
 }
 
-// ================================================================
-// COLOR DEL MAPA
-// ================================================================
+/* ════════════════════ COLOR MAPA ════════════════════ */
 function getColorMapa(r){
-  var mode=(document.getElementById('colorMode')||{value:'tipo'}).value||'tipo';
+  var mode=($id('colorMode')||{value:'tipo'}).value;
   if(mode==='tipo')return r.tipo==='Dispersa'?'#5c8a3a':'#1f7a8c';
-  var a=pctAgua(r),s=pctSanea(r),e=pctElec(r);
+  var a=pctA(r),s=pctS(r),p=r.pT||0;
   if(mode==='agua')return a>=60?'#3a8a40':a>=30?'#e8a020':'#c44536';
   if(mode==='sanea')return s<=25?'#3a8a40':s<=60?'#e8a020':'#c44536';
-  if(mode==='pob'){var p=r.pT||0;return p>=500?'#1f3a8c':p>=200?'#1f7a8c':p>=50?'#3ab8c8':'#8acfdf';}
+  if(mode==='pob')return p>=500?'#1f3a8c':p>=200?'#1f7a8c':p>=50?'#3ab8c8':'#8acfdf';
   return '#1f7a8c';
 }
-function actualizarLeyenda(){
-  var el=document.getElementById('mapaLey');if(!el)return;
-  var mode=(document.getElementById('colorMode')||{value:'tipo'}).value||'tipo';
-  var L2={tipo:[['#5c8a3a','Dispersa'],['#1f7a8c','Amanzanada']],
-    agua:[['#c44536','<30%'],['#e8a020','30-60%'],['#3a8a40','>60%']],
-    sanea:[['#3a8a40','<25%'],['#e8a020','25-60%'],['#c44536','>60%']],
-    pob:[['#8acfdf','<50'],['#3ab8c8','50-200'],['#1f7a8c','200-500'],['#1f3a8c','>500']]};
-  el.innerHTML=(L2[mode]||[]).map(function(x){return '<span class="ley-i"><span class="ley-d" style="background:'+x[0]+'"></span>'+x[1]+'</span>';}).join('');
+function actualizarLey(){
+  var el=$id('mapaLey');if(!el)return;
+  var mode=($id('colorMode')||{value:'tipo'}).value;
+  var M={tipo:[['#5c8a3a','Dispersa'],['#1f7a8c','Amanzanada']],agua:[['#c44536','<30%'],['#e8a020','30-60%'],['#3a8a40','>60%']],sanea:[['#3a8a40','<25%'],['#e8a020','25-60%'],['#c44536','>60%']],pob:[['#8acfdf','<50'],['#3ab8c8','50-200'],['#1f7a8c','200-500'],['#1f3a8c','>500']]};
+  el.innerHTML=(M[mode]||[]).map(function(x){return '<span class="ley-i"><span class="ley-d" style="background:'+x[0]+'"></span>'+x[1]+'</span>';}).join('');
 }
-function toggleColorBar(){
-  var b=document.getElementById('mapaColorBar');if(!b)return;
-  b.classList.toggle('vis');document.getElementById('btnColor').classList.toggle('on');
-  if(b.classList.contains('vis'))actualizarLeyenda();
-}
-window.actualizarColorMapa=function(){actualizarLeyenda();pintarMapa();};
+window.actualizarColorMapa=function(){actualizarLey();pintarMapa();};
+window.toggleColorBar=function(){var b=$id('colorBar');if(!b)return;b.classList.toggle('vis');$id('btnColor').classList.toggle('on');if(b.classList.contains('vis'))actualizarLey();};
 
-// ================================================================
-// HERRAMIENTAS MAPA
-// ================================================================
-function showToolBar(txt,conInput){
-  var tb=document.getElementById('mapaToolBar');if(!tb)return;
-  document.getElementById('mapaToolTxt').textContent=txt;
-  var ri=document.getElementById('radioKmInp'),ro=document.getElementById('radioOkBtn');
-  if(ri)ri.style.display=conInput?'block':'none';
-  if(ro)ro.style.display=conInput?'block':'none';
+/* ════════════════════ HERRAMIENTAS MAPA ════════════════════ */
+function showTool(txt,extras){
+  var tb=$id('toolBar');if(!tb)return;
+  $id('toolTxt').textContent=txt;
+  ['radioInp','radioOkBtn','heatMode'].forEach(function(id){var el=$id(id);if(el)el.style.display='none';});
+  if(extras)extras.forEach(function(id){var el=$id(id);if(el)el.style.display='';});
   tb.classList.add('vis');
 }
 window.cancelTool=function(){
-  medirOn=false;lazoOn=false;radioWait=false;
-  ['btnMedir','btnLazo','btnRadio'].forEach(function(id){var el=document.getElementById(id);if(el)el.classList.remove('on');});
-  var tb=document.getElementById('mapaToolBar');if(tb)tb.classList.remove('vis');
-  if(mapa)mapa.getContainer().style.cursor='';
+  medirOn=false;lazoOn=false;radioWait=false;poiMode=false;
+  ['btnMedir','btnLazo','btnRadio','btnHeat'].forEach(function(id){var el=$id(id);if(el)el.classList.remove('on');});
+  var tb=$id('toolBar');if(tb)tb.classList.remove('vis');
 };
 window.miUbicacion=function(){
-  var btn=document.getElementById('btnGps');if(btn)btn.textContent='⏳';
+  var btn=$id('btnGps');if(btn)btn.textContent='⏳';
   navigator.geolocation.getCurrentPosition(function(p){
-    if(btn)btn.textContent='📍';
-    mapa.setView([p.coords.latitude,p.coords.longitude],13);
-    L.circleMarker([p.coords.latitude,p.coords.longitude],{radius:9,color:'#fff',weight:2.5,fillColor:'#1f7a8c',fillOpacity:.95}).bindPopup('<b>Tu ubicación</b>').addTo(mapa).openPopup();
+    if(btn)btn.textContent='📍';mapa.setView([p.coords.latitude,p.coords.longitude],13);
+    L.circleMarker([p.coords.latitude,p.coords.longitude],{radius:9,color:'#fff',weight:2.5,fillColor:'#1f7a8c',fillOpacity:.95}).bindPopup('<b>Tu ubicación</b><br>'+p.coords.latitude.toFixed(5)+', '+p.coords.longitude.toFixed(5)).addTo(mapa).openPopup();
   },function(){if(btn)btn.textContent='📍';alert('No se pudo obtener GPS.');},{enableHighAccuracy:true,timeout:12000});
 };
-window.toggleSat=function(){
-  var on=document.getElementById('btnSat').classList.toggle('on');
-  if(on&&!capaSat)capaSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'}).addTo(mapa);
-  else if(!on&&capaSat){mapa.removeLayer(capaSat);capaSat=null;}
-};
+window.toggleSat=function(){var on=$id('btnSat').classList.toggle('on');if(on&&!capaSat)capaSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18}).addTo(mapa);else if(!on&&capaSat){mapa.removeLayer(capaSat);capaSat=null;}};
 window.toggleHeat=function(){
-  var on=document.getElementById('btnHeat').classList.toggle('on');
+  var on=$id('btnHeat').classList.toggle('on');if(capaHeat){mapa.removeLayer(capaHeat);capaHeat=null;}
+  if(!on){cancelTool();return;}
+  if(typeof L.heatLayer!=='function'){alert('Leaflet.heat no disponible (necesita internet).');$id('btnHeat').classList.remove('on');return;}
+  showTool('Heatmap:',['heatMode']);aplicarHeat();
+};
+window.aplicarHeat=function(){
   if(capaHeat){mapa.removeLayer(capaHeat);capaHeat=null;}
-  if(!on)return;
-  if(typeof L.heatLayer!=='function'){alert('Leaflet.heat no cargado — necesita internet.');document.getElementById('btnHeat').classList.remove('on');return;}
+  var modo=($id('heatMode')||{value:'sinAgua'}).value;
   var pts=(filtrados.length?filtrados:DATOS).filter(function(r){return r.lat&&r.lon;}).map(function(r){
     var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
-    return [r.lat,r.lon,Math.max(1,(r.pT||1)*(at>0?1-((r.aCan||0)+(r.aPil||0))/at:1))];
+    var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+    var w=modo==='sinAgua'?Math.max(1,(r.pT||1)*(at>0?1-((r.aCan||0)+(r.aPil||0))/at:1)):modo==='sinSanea'?Math.max(1,(r.pT||1)*(st>0?(r.snNo||0)/st:1)):Math.max(1,r.pT||1);
+    return [r.lat,r.lon,w];
   });
   capaHeat=L.heatLayer(pts,{radius:35,blur:25,maxZoom:12,max:300}).addTo(mapa);
 };
-window.toggleMedir=function(){
-  medirOn=!medirOn;document.getElementById('btnMedir').classList.toggle('on',medirOn);
-  medirPtoA=null;if(medirLinea){mapa.removeLayer(medirLinea);medirLinea=null;}
-  if(medirOn)showToolBar('Toca punto A en el mapa');else cancelTool();
-};
-window.iniciarRadio=function(){showToolBar('Radio de influencia (km):',true);};
-window.confirmarRadio=function(){
-  radioKm=parseFloat(document.getElementById('radioKmInp').value)||10;
-  radioWait=true;showToolBar('Toca el centro del radio en el mapa');
-};
-window.iniciarLazo=function(){
-  lazoOn=!lazoOn;document.getElementById('btnLazo').classList.toggle('on',lazoOn);
-  lazoPtoA=null;if(lazoOn)showToolBar('Toca la 1ª esquina del área');else{cancelTool();if(lazoRect){mapa.removeLayer(lazoRect);lazoRect=null;}}
-};
+window.toggleMedir=function(){medirOn=!medirOn;$id('btnMedir').classList.toggle('on',medirOn);medirA=null;if(medirLine){mapa.removeLayer(medirLine);medirLine=null;}if(medirOn)showTool('Toca punto A en el mapa');else cancelTool();};
+window.iniciarRadio=function(){showTool('Radio (km):',['radioInp','radioOkBtn']);};
+window.confirmarRadio=function(){radioKm=parseFloat($id('radioInp').value)||10;radioWait=true;showTool('Toca el centro del radio en el mapa');};
+window.iniciarLazo=function(){lazoOn=!lazoOn;$id('btnLazo').classList.toggle('on',lazoOn);lazoA=null;if(lazoOn)showTool('Toca la 1ª esquina del área');else{cancelTool();if(lazoRect){mapa.removeLayer(lazoRect);lazoRect=null;}}};
+window.toggleCoordBar=function(){var b=$id('coordBar');if(!b)return;b.classList.toggle('vis');if(b.classList.contains('vis'))setTimeout(function(){$id('coordInp').focus();},100);};
+window.cerrarCoordBar=function(){var b=$id('coordBar');if(b)b.classList.remove('vis');};
+window.buscarCoords=function(){var raw=($id('coordInp').value||'').trim();var m=raw.match(/(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/);if(!m){alert('Formato: lat, lon  Ej: -17.3891, -66.1568');return;}mapa.setView([parseFloat(m[1]),parseFloat(m[2])],13);L.popup().setLatLng([parseFloat(m[1]),parseFloat(m[2])]).setContent('📍 '+m[1]+', '+m[2]).openOn(mapa);cerrarCoordBar();cambiarVista('mapa');};
 
-// ================================================================
-// MINI-MAPA EN FICHA
-// ================================================================
-function iniciarMiniMapa(r){
-  var w=document.getElementById('miniMapW');if(!w)return;
-  if(!r||!r.lat||!r.lon){w.style.display='none';return;}
-  w.style.display='block';w.style.height='162px';
-  if(miniMap){miniMap.remove();miniMap=null;}
-  w.innerHTML='<div id="miniMapEl" style="width:100%;height:100%"></div>';
-  setTimeout(function(){
-    miniMap=L.map('miniMapEl',{zoomControl:true,attributionControl:false,scrollWheelZoom:false}).setView([r.lat,r.lon],13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(miniMap);
-    L.circleMarker([r.lat,r.lon],{radius:9,color:'#fff',weight:2.5,fillColor:'#c44536',fillOpacity:.95}).addTo(miniMap);
-  },80);
+/* ════════════════════ POI ════════════════════ */
+var POI_TIPOS={captacion:'💧',naciente:'🌊',obra:'🏗️',contam:'⚠️',com:'🏘️',otro:'📌'};
+window.iniciarPOI=function(){poiMode=true;showTool('Toca el mapa para colocar el punto de interés');};
+window.cerrarPOI=function(){poiMode=false;$id('poiOv').classList.remove('activo');};
+window.guardarPOI=function(){
+  if(!poiLat)return;var nom=$id('poiNom').value.trim()||'Sin nombre';var tipo=$id('poiTipo').value;var nota=$id('poiNota').value.trim();
+  var pois=lsGet('censo_pois')||[];pois.push({id:'p'+Date.now(),nom:nom,tipo:tipo,nota:nota,lat:poiLat,lon:poiLon,ts:Date.now()});
+  lsSet('censo_pois',pois);cerrarPOI();renderPOIs();
+};
+function renderPOIs(){
+  if(!window.mapa)return;if(capaPOI){mapa.removeLayer(capaPOI);capaPOI=null;}
+  var pois=lsGet('censo_pois')||[];if(!pois.length)return;
+  capaPOI=L.layerGroup();
+  pois.forEach(function(p){
+    var ico=L.divIcon({html:'<div style="font-size:1.3rem;line-height:1">'+(POI_TIPOS[p.tipo]||'📌')+'</div>',className:'',iconSize:[24,24],iconAnchor:[12,12]});
+    L.marker([p.lat,p.lon],{icon:ico}).bindPopup('<b>'+p.nom+'</b><br><small>'+p.tipo+'</small>'+(p.nota?'<br>'+p.nota:'')).addTo(capaPOI);
+  });capaPOI.addTo(mapa);
 }
-
-// ================================================================
-// FAVORITOS
-// ================================================================
-function cargarFavs(){return lsGet('censo_favs')||[];}
-function guardarFavs(a){lsSet('censo_favs',a);}
-function esFav(r){return cargarFavs().some(function(f){return f.id===cId(r);});}
-window.toggleFav=function(){
-  if(!comActual)return;
-  var id=cId(comActual),favs=cargarFavs();
-  var i=favs.findIndex(function(f){return f.id===id;});
-  if(i>=0)favs.splice(i,1);else favs.unshift({id:id,com:comActual.com,mun:comActual.mun,pT:comActual.pT,ts:Date.now()});
-  guardarFavs(favs);actualizarFavBtn();actualizarFavBdg();
-};
-function actualizarFavBtn(){
-  if(!comActual)return;var es=esFav(comActual);
-  var btn=document.getElementById('btnFavModal');if(btn){btn.textContent=es?'★':'☆';btn.style.color=es?'#e6b800':'';}
-  var fi=document.getElementById('cFavIco');if(fi)fi.textContent=es?'★':'☆';
-}
-function actualizarFavBdg(){
-  var n=cargarFavs().length,el=document.getElementById('favBdg');
-  if(el){el.style.display=n>0?'flex':'none';el.textContent=n>9?'9+':n;}
-}
-actualizarFavBdg();
-
-// ================================================================
-// HISTORIAL
-// ================================================================
-function addHist(r){
-  var h=lsGet('censo_hist')||[],id=cId(r);
-  h=h.filter(function(x){return x.id!==id;});
-  h.unshift({id:id,com:r.com,mun:r.mun,pT:r.pT,ts:Date.now()});
-  if(h.length>10)h.pop();lsSet('censo_hist',h);
-}
-
-// ================================================================
-// PANEL RÁPIDO (favs/hist)
-// ================================================================
-window.abrirPanel=function(tipo){
-  var items=tipo==='favs'?cargarFavs():(lsGet('censo_hist')||[]);
-  var titulo=tipo==='favs'?'⭐ Favoritos':'🕐 Recientes';
-  document.getElementById('prHead').textContent=titulo;
-  document.getElementById('prBody').innerHTML=items.length?items.map(function(h){
-    var idx=DATOS.findIndex(function(r){return cId(r)===h.id;});
-    return '<div class="pr-item" onclick="cerrarPR();if('+idx+'>=0)abrirModal('+idx+')">'
-      +'<span class="d-ico">'+(tipo==='favs'?'⭐':'🕐')+'</span>'
-      +'<div class="d-inf"><div class="d-nom">'+h.com+'</div><div class="d-sub">'+h.mun+' · '+(h.pT||0).toLocaleString()+' hab.</div></div>'
-      +'<span style="color:var(--muted)">›</span></div>';
-  }).join(''):'<div style="text-align:center;padding:22px;color:var(--muted);font-size:.82rem">'+(tipo==='favs'?'Sin favoritos. Toca ☆ en la ficha.':'Sin historial todavía.')+'</div>';
-  document.getElementById('prFondo').classList.add('activo');
-};
-window.cerrarPR=function(){document.getElementById('prFondo').classList.remove('activo');};
-
-// ================================================================
-// MODO CAMPO
-// ================================================================
-window.abrirCampo=function(){
-  if(!comActual)return;
-  var r=comActual;
-  document.getElementById('cNom').textContent=r.com;
-  document.getElementById('cMeta').textContent=r.mun+', '+r.prov+' · '+r.dep+' · '+r.tipo;
-  refreshCampo();
-  var cc=document.getElementById('cCoords');
-  if(cc&&r.lat){cc.style.display='flex';document.getElementById('cCoordsV').textContent=r.lat.toFixed(5)+'°S, '+Math.abs(r.lon).toFixed(5)+'°O';}
-  document.getElementById('campoOv').classList.add('activo');
-};
-window.cerrarCampo=function(){document.getElementById('campoOv').classList.remove('activo');};
-window.refreshCampo=function(){
-  if(!comActual)return;var r=comActual;
-  var a=pctAgua(r),s=pctSanea(r),e=pctElec(r);
-  document.getElementById('cSems').innerHTML=[
-    {i:'💧',v:a,l:'Agua',inv:false},{i:'🚽',v:s,l:'Sin sanea.',inv:true},{i:'⚡',v:e,l:'Elec.',inv:false}
-  ].map(function(x){return '<div class="c-sem '+semCls(x.v,x.inv)+'"><span style="font-size:1.6rem">'+x.i+'</span><span class="c-sem-p">'+x.v+'%</span><span class="c-sem-l">'+x.l+'</span></div>';}).join('');
-  var sc=calcScore(r);var c2=sc>=60?'#c44536':sc>=30?'#dba017':'#3a8a40';
-  document.getElementById('cScore').innerHTML='<div style="font-size:.67rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Índice de prioridad</div>'
-    +'<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:9px;background:var(--line);border-radius:5px;overflow:hidden"><div style="width:'+sc+'%;height:100%;background:'+c2+'"></div></div><span style="font-size:1rem;font-weight:900;color:'+c2+'">'+sc+'/100</span></div>'
-    +'<div style="font-size:.69rem;color:'+c2+';font-weight:700;margin-top:3px">'+(sc>=60?'CRÍTICA':sc>=30?'MEDIA':'BAJA')+'</div>';
-  var fi=document.getElementById('cFavIco');if(fi)fi.textContent=esFav(r)?'★':'☆';
-};
-
-// ================================================================
-// NOTAS GLOBALES
-// ================================================================
-window.abrirNotas=function(){renderNotas();document.getElementById('notasOv').classList.add('activo');};
-window.cerrarNotas=function(){document.getElementById('notasOv').classList.remove('activo');};
-function renderNotas(){
-  var n=lsGet('censo_notas')||[];
-  document.getElementById('notasBody').innerHTML=n.length?n.map(function(x,i){
-    return '<div class="nota-g"><div class="nota-g-t">'+x.t+'</div>'
-      +'<div class="nota-g-m"><span>'+new Date(x.ts).toLocaleDateString('es',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'</span>'
-      +'<button onclick="delNota('+i+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem">🗑</button></div></div>';
-  }).join(''):'<div style="text-align:center;padding:18px;color:var(--muted);font-size:.82rem">Sin notas. Escribí la primera abajo.</div>';
-  var bdg=document.getElementById('notasBdg');if(bdg){bdg.style.display=n.length>0?'flex':'none';bdg.textContent=n.length;}
-}
-window.guardarNota=function(){
-  var inp=document.getElementById('notaInp');var t=inp.value.trim();if(!t)return;
-  var n=lsGet('censo_notas')||[];n.unshift({t:t,ts:Date.now()});lsSet('censo_notas',n);inp.value='';renderNotas();
-};
-window.delNota=function(i){var n=lsGet('censo_notas')||[];n.splice(i,1);lsSet('censo_notas',n);renderNotas();};
-
-// ================================================================
-// ALERTAS
-// ================================================================
-window.toggleAlerta=function(){
-  if(!comActual)return;
-  var id=cId(comActual),al=lsGet('censo_al')||{};
-  if(al[id])delete al[id];else al[id]={com:comActual.com,mun:comActual.mun,ts:Date.now()};
-  lsSet('censo_al',al);
-  var btn=document.getElementById('btnAlertaM');if(btn)btn.textContent=al[id]?'🚩 Alertada':'🏳️ Alertar';
-  var bdg=document.getElementById('alertaBdg');if(bdg){var n=Object.keys(al).length;bdg.style.display=n>0?'flex':'none';bdg.textContent=n;}
-};
-window.abrirAlertas=function(){
-  var al=lsGet('censo_al')||{};var ids=Object.keys(al);
-  var wrap=document.createElement('div');wrap.id='alWrap';
-  wrap.style.cssText='position:fixed;inset:0;z-index:870;background:rgba(19,32,28,.5);display:flex;align-items:flex-end';
-  wrap.innerHTML='<div style="background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:70vh;display:flex;flex-direction:column">'
-    +'<div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">'
-    +'<span style="font-weight:700;font-size:.9rem">🚩 Alertas pendientes ('+ids.length+')</span>'
-    +'<button onclick="document.getElementById(\'alWrap\').remove()" style="background:none;border:none;font-size:1.2rem;color:var(--muted)">✕</button></div>'
-    +'<div style="overflow-y:auto;flex:1;padding:10px 13px">'
-    +(ids.length?ids.map(function(id){
-      var a=al[id];var idx=DATOS.findIndex(function(r){return cId(r)===id;});
-      return '<div class="d-item" onclick="document.getElementById(\'alWrap\').remove();if('+idx+'>=0)abrirModal('+idx+')">'
-        +'<span class="d-ico">🚩</span><div class="d-inf"><div class="d-nom">'+a.com+'</div><div class="d-sub">'+a.mun+'</div></div>'
-        +'<span style="color:var(--muted)">›</span></div>';
-    }).join(''):'<div style="text-align:center;padding:20px;color:var(--muted);font-size:.82rem">Sin alertas. Toca 🏳️ en la ficha.</div>')
-    +'</div></div>';
-  wrap.onclick=function(e){if(e.target.id==='alWrap')wrap.remove();};
-  document.body.appendChild(wrap);
-};
-
-// ================================================================
-// CALCULADORA
-// ================================================================
-window.abrirCalc=function(){document.getElementById('calcOv').classList.add('activo');recalcInv();};
-window.cerrarCalc=function(){document.getElementById('calcOv').classList.remove('activo');};
-window.recalcInv=function(){
-  var ca=parseFloat(document.getElementById('cCA').value)||8500;
-  var cs=parseFloat(document.getElementById('cCS').value)||5200;
-  var ce=parseFloat(document.getElementById('cCE').value)||4800;
-  var base=(filtrados.length?filtrados:DATOS).slice(0,200);
-  var tA=0,tS=0,tE=0;
-  base.forEach(function(r){
-    var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
-    var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
-    var et=(r.elPub||0)+(r.elNo||0);
-    tA+=(at>0?Math.round(at-((r.aCan||0)+(r.aPil||0))):(r.vT||0))*ca;
-    tS+=(st>0?Math.round(r.snNo||0):(r.vT||0))*cs;
-    tE+=(et>0?Math.round(et-(r.elPub||0)):(r.vT||0))*ce;
-  });
-  var res=document.getElementById('calcRes');res.style.display='block';
-  res.innerHTML='<div class="calc-tot">'+fmtM(tA+tS+tE)+'</div>'
-    +'<div style="font-size:.72rem;color:var(--muted);margin-top:3px">'+base.length+' comunidades · Agua: '+fmtM(tA)+' · Sanea: '+fmtM(tS)+' · Elec: '+fmtM(tE)+'</div>';
-};
-
-// ================================================================
-// PANEL UNIVERSAL
-// ================================================================
-window.cerrarPnl=function(){document.getElementById('pnlOv').classList.remove('activo');if(scatterInst){scatterInst.destroy();scatterInst=null;}};
-function abrirPnl(titulo,html2){
-  document.getElementById('pnlTit').textContent=titulo;
-  document.getElementById('pnlBody').innerHTML=html2;
-  document.getElementById('pnlOv').classList.add('activo');
-}
-
-// ================================================================
-// SCATTER
-// ================================================================
-window.abrirScatter=function(){
-  document.getElementById('pnlTit').textContent='📈 Agua vs Saneamiento';
-  document.getElementById('pnlBody').innerHTML='<div style="font-size:.71rem;color:var(--muted);margin-bottom:8px">Cada punto = comunidad. Toca para ver la ficha. 🔴=crítica 🟡=media 🟢=baja</div><canvas id="sCvs" style="max-height:300px"></canvas><div id="sInfo" style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:5px"></div>';
-  document.getElementById('pnlOv').classList.add('activo');
-  var base=(filtrados.length?filtrados:DATOS).filter(function(r){return r.lat;}).slice(0,2000);
-  var ds=base.map(function(r){
-    var sc=calcScore(r);
-    return {x:pctAgua(r),y:pctSanea(r),_i:DATOS.indexOf(r),
-      backgroundColor:sc>=60?'rgba(196,69,54,.65)':sc>=30?'rgba(210,140,30,.65)':'rgba(46,122,56,.65)'};
-  });
-  if(scatterInst)scatterInst.destroy();
-  scatterInst=new Chart(document.getElementById('sCvs').getContext('2d'),{type:'scatter',
-    data:{datasets:[{data:ds,pointRadius:4,pointHoverRadius:7,backgroundColor:ds.map(function(d){return d.backgroundColor;})}]},
-    options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){var d=ds[c.dataIndex];var r=DATOS[d._i];return (r?r.com+' ('+r.mun+')':'');}}}},
-      scales:{x:{title:{display:true,text:'% Agua segura',font:{size:10}},min:0,max:100},y:{title:{display:true,text:'% Sin saneamiento',font:{size:10}},min:0,max:100}},
-      onClick:function(e,els){if(!els.length)return;cerrarPnl();abrirModal(ds[els[0].index]._i);}
-    }
-  });
-  document.getElementById('sInfo').textContent=base.length+' comunidades mostradas';
-};
-
-// ================================================================
-// BRECHA DEPARTAMENTAL
-// ================================================================
-window.abrirBrechas=function(){
-  var deps={};
-  DATOS.forEach(function(r){
-    var d=r.dep||'S/D';if(!deps[d])deps[d]={p:0,sA:0,sS:0,sE:0};
-    var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);
-    var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
-    var et=(r.elPub||0)+(r.elNo||0);var pob=r.pT||0;
-    deps[d].p+=pob;
-    deps[d].sA+=at>0?pob*(1-((r.aCan||0)+(r.aPil||0))/at):pob;
-    deps[d].sS+=st>0?pob*((r.snNo||0)/st):pob;
-    deps[d].sE+=et>0?pob*(1-(r.elPub||0)/et):pob;
-  });
-  var list=Object.keys(deps).filter(function(k){return k!=='S/D';}).sort(function(a,b){return (deps[b].sA/Math.max(1,deps[b].p))-(deps[a].sA/Math.max(1,deps[a].p));});
-  function fN(n){return n>=1000?(n/1000).toFixed(1)+'K':Math.round(n)+'';} 
-  var h='<div style="font-size:.7rem;color:var(--muted);margin-bottom:10px">% de población estimada sin acceso</div>';
-  [{k:'sA',l:'Sin agua potable',c:'#c44536'},{k:'sS',l:'Sin saneamiento',c:'#dba017'},{k:'sE',l:'Sin electricidad',c:'#5c8a3a'}].forEach(function(ind){
-    h+='<div style="margin-bottom:14px"><div style="font-size:.74rem;font-weight:800;color:var(--muted);margin-bottom:5px">'+ind.l+'</div>';
-    var mx=Math.max.apply(null,list.map(function(d){return deps[d][ind.k];}));
-    list.forEach(function(d){
-      var v=deps[d][ind.k],pct=deps[d].p>0?Math.round(v/deps[d].p*100):0;
-      h+='<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--line)">'
-        +'<span style="flex:0 0 70px;font-size:.71rem;font-weight:700">'+d.substring(0,9)+'</span>'
-        +'<div style="flex:1;background:var(--line);border-radius:3px;height:7px;overflow:hidden"><div style="width:'+(mx?v/mx*100:0)+'%;height:100%;background:'+ind.c+'"></div></div>'
-        +'<span style="flex:0 0 30px;font-size:.7rem;text-align:right;font-weight:700">'+pct+'%</span>'
-        +'<span style="flex:0 0 36px;font-size:.67rem;color:var(--muted);text-align:right">'+fN(v)+'</span></div>';
-    });
-    h+='</div>';
-  });
-  abrirPnl('📉 Brecha por departamento',h);
-};
-
-// ================================================================
-// RANKING
-// ================================================================
-window.abrirRanking=function(){
-  var base=(filtrados.length?filtrados:DATOS).slice().sort(function(a,b){return calcScore(b)-calcScore(a);}).slice(0,30);
-  var h='<div style="font-size:.73rem;color:var(--muted);margin-bottom:8px">Top 30 más críticas. Toca para ver la ficha.</div>';
-  base.forEach(function(r,i){
-    var sc=calcScore(r);var idx=DATOS.indexOf(r);
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="cerrarPnl();abrirModal('+idx+')">'
-      +'<span style="flex:0 0 20px;font-weight:800;font-size:.77rem;color:var(--muted)">'+(i+1)+'</span>'
-      +'<div style="flex:1;min-width:0"><div style="font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.com+'</div>'
-      +'<div style="font-size:.67rem;color:var(--muted)">'+r.mun+'</div></div>'
-      +scorePill(sc)+'</div>';
-  });
-  abrirPnl('🏆 Ranking de prioridad',h);
-};
-
-// ================================================================
-// SIMILARES
-// ================================================================
-window.abrirSimilares=function(){
-  if(!comActual)return;var r=comActual;
-  var a=pctAgua(r),s=pctSanea(r),e=pctElec(r);
-  var sims=DATOS.filter(function(d){return d!==r&&d.mun!==r.mun;}).map(function(d){
-    var dist=Math.sqrt(Math.pow(a-pctAgua(d),2)+Math.pow(s-pctSanea(d),2)*1.2+Math.pow(e-pctElec(d),2)*0.5);
-    return {d:d,dist:dist};
-  }).sort(function(a2,b){return a2.dist-b.dist;}).slice(0,10);
-  var h='<div style="font-size:.71rem;color:var(--muted);padding-bottom:9px">Similares a <b>'+r.com+'</b></div>';
-  sims.forEach(function(s2){
-    var idx=DATOS.indexOf(s2.d);var sim=Math.max(0,Math.round(100-s2.dist));
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="cerrarPnl();abrirModal('+idx+')">'
-      +'<span style="padding:2px 7px;border-radius:6px;font-size:.64rem;font-weight:800;background:var(--agua-l);color:var(--agua-d);flex:0 0 auto">'+sim+'%</span>'
-      +'<div style="flex:1;min-width:0"><div style="font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s2.d.com+'</div>'
-      +'<div style="font-size:.67rem;color:var(--muted)">'+s2.d.mun+', '+s2.d.dep+'</div></div>'
-      +'<span style="color:var(--muted)">›</span></div>';
-  });
-  abrirPnl('🔍 Comunidades similares',h);
-};
-
-// ================================================================
-// FILTRO AVANZADO
-// ================================================================
-var INDS=[{k:'pT',l:'Población total'},{k:'_agua',l:'% agua segura'},{k:'_sanea',l:'% sin saneamiento'},{k:'_elec',l:'% electricidad'},{k:'_score',l:'Score prioridad'}];
-window.abrirFiltroAv=function(){condsFAv=[{ind:'_agua',op:'<',val:50}];renderCondsFAv();document.getElementById('pnlOv').classList.add('activo');document.getElementById('pnlTit').textContent='🔬 Filtro avanzado';};
-function renderCondsFAv(){
-  var h=condsFAv.map(function(c,i){
-    return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-      +'<select onchange="condsFAv['+i+'].ind=this.value" style="flex:1;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.76rem;background:var(--card);color:var(--ink)">'
-      +INDS.map(function(x){return '<option value="'+x.k+'"'+(x.k===c.ind?' selected':'')+'>'+x.l+'</option>';}).join('')+'</select>'
-      +'<select onchange="condsFAv['+i+'].op=this.value" style="width:48px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.8rem;background:var(--card);color:var(--ink)">'
-      +['<','<=','=','>=','>'].map(function(o){return '<option'+(o===c.op?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'
-      +'<input type="number" value="'+c.val+'" onchange="condsFAv['+i+'].val=+this.value" style="width:55px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.8rem;background:var(--card);color:var(--ink)">'
-      +'<button onclick="condsFAv.splice('+i+',1);renderCondsFAvUI()" style="background:none;border:none;font-size:1rem;color:var(--muted);cursor:pointer">🗑</button></div>';
-  }).join('');
-  h+='<button onclick="condsFAv.push({ind:\'_agua\',op:\'<\',val:50});renderCondsFAvUI()" style="width:100%;padding:8px;border:1px dashed var(--agua);border-radius:9px;color:var(--agua);font-weight:700;font-size:.79rem;background:none;margin-top:5px">＋ Condición</button>'
-    +'<button onclick="aplicarFAv()" style="width:100%;padding:10px;background:var(--agua);color:#fff;border:none;border-radius:9px;font-weight:800;font-size:.83rem;margin-top:9px">Aplicar filtro</button>';
-  document.getElementById('pnlBody').innerHTML=h;
-}
-window.renderCondsFAvUI=function(){renderCondsFAv();};
-function valInd(r,k){
-  if(k==='pT')return r.pT||0;if(k==='_score')return calcScore(r);
-  if(k==='_agua')return pctAgua(r);if(k==='_sanea')return pctSanea(r);if(k==='_elec')return pctElec(r);return 0;
-}
-function aplicarFAv(){
-  filtrados=DATOS.filter(function(r){return condsFAv.every(function(c){
-    var v=valInd(r,c.ind);return c.op==='<'?v<c.val:c.op==='<='?v<=c.val:c.op==='='?v===c.val:c.op==='>='?v>=c.val:v>c.val;
-  });});
-  cerrarPnl();cambiarVista('lista');render();pintarMapa();
-}
-
-// ================================================================
-// AUTOCOMPLETE
-// ================================================================
-function onSearch(v){
-  var list=document.getElementById('acList');if(!list)return;
-  if(!v||v.length<2||!window.datosListos){list.classList.remove('vis');return;}
-  var q=norm(v);
-  var m=DATOS.filter(function(r){return norm(r.com).includes(q);}).slice(0,8);
-  if(!m.length){list.classList.remove('vis');return;}
-  list.innerHTML=m.map(function(r){
-    return '<div class="ac-item" onmousedown="selAC(\''+r.com.replace(/\'/g,"\\'")+'\')">'
-      +'<span class="ac-com">'+r.com+'</span> <span class="ac-mun">'+r.mun+', '+r.dep+'</span></div>';
-  }).join('');
-  list.classList.add('vis');
-}
-window.selAC=function(nom){
-  var f=document.getElementById('fBuscar');if(f)f.value=nom;
-  var l=document.getElementById('acList');if(l)l.classList.remove('vis');
-  window.aplicarFiltros&&window.aplicarFiltros();
-};
-
-// ================================================================
-// DASHBOARD
-// ================================================================
-function renderDashboard(){
-  var kpis=document.getElementById('dKpis');if(!kpis)return;
-  if(!window.datosListos){kpis.innerHTML='<div style="color:var(--muted);font-size:.8rem;grid-column:1/-1">Cargando datos…</div>';return;}
-  var totP=suma(DATOS,'pT');
-  var sinA=DATOS.reduce(function(s,r){var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);return s+(at>0?((at-(r.aCan||0)-(r.aPil||0))/at*(r.pT||0)):0);},0);
-  kpis.innerHTML=
-    '<div class="d-kpi"><div class="d-kpi-v">'+DATOS.length.toLocaleString()+'</div><div class="d-kpi-l">Comunidades</div></div>'+
-    '<div class="d-kpi"><div class="d-kpi-v">'+(totP/1e6).toFixed(2)+'M</div><div class="d-kpi-l">Habitantes rurales</div></div>'+
-    '<div class="d-kpi"><div class="d-kpi-v" style="color:var(--rojo)">'+Math.round(sinA/totP*100)+'%</div><div class="d-kpi-l">Sin agua segura</div></div>'+
-    '<div class="d-kpi"><div class="d-kpi-v">9</div><div class="d-kpi-l">Departamentos</div></div>';
-  var progs=window.programas||{};var ids=Object.keys(progs).sort(function(a,b){return (progs[b].creado||0)-(progs[a].creado||0);}).slice(0,3);
-  document.getElementById('dProgs').innerHTML=ids.length?ids.map(function(id){
-    var p=progs[id];var n=Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];}).length;
-    return '<div class="d-item" onclick="cambiarVista(\'programas\');setTimeout(function(){abrirPrograma(\''+id+'\')},100)">'
-      +'<span class="d-ico">📊</span><div class="d-inf"><div class="d-nom">'+(p.nombre||'Sin nombre')+'</div><div class="d-sub">'+(p.municipios||[]).length+' municipios · '+n+' com.</div></div>'
-      +'<span style="color:var(--muted)">›</span></div>';
-  }).join(''):'<div style="font-size:.8rem;color:var(--muted)">Sin programas. <span onclick="cambiarVista(\'programas\')" style="color:var(--agua);cursor:pointer">Crear →</span></div>';
-  var hist=lsGet('censo_hist')||[];
-  document.getElementById('dRecientes').innerHTML=hist.length?hist.slice(0,5).map(function(h){
-    var idx=DATOS.findIndex(function(r){return cId(r)===h.id;});
-    return '<div class="d-item" onclick="if('+idx+'>=0)abrirModal('+idx+')">'
-      +'<span class="d-ico">🕐</span><div class="d-inf"><div class="d-nom">'+h.com+'</div><div class="d-sub">'+h.mun+' · '+(h.pT||0).toLocaleString()+' hab.</div></div>'
-      +'<span style="color:var(--muted)">›</span></div>';
-  }).join(''):'<div style="font-size:.8rem;color:var(--muted)">Abrí fichas para verlas acá.</div>';
-}
-window.renderDashboard=renderDashboard;
-
-// ================================================================
-// PLANTILLAS
-// ================================================================
-var PLTS=[{n:'Sin agua rural',i:'💧',d:'<500 hab, agua <30%'},{n:'Alta prioridad saneamiento',i:'🚽',d:'>60% sin saneamiento'},{n:'Pequeñas y críticas',i:'🆘',d:'<100 hab, agua <40%'},{n:'Sin electricidad',i:'⚡',d:'<20% cobertura eléctrica'},{n:'Revisión completa',i:'📋',d:'Sin filtro adicional'}];
-window.mostrarPlantillas=function(){
-  abrirPnl('📋 Crear desde plantilla',
-    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">Seleccioná una plantilla</div>'
-    +PLTS.map(function(p,i){
-      return '<div class="d-item" style="margin-bottom:7px" onclick="crearDesdePlt('+i+')">'
-        +'<span class="d-ico">'+p.i+'</span><div class="d-inf"><div class="d-nom">'+p.n+'</div><div class="d-sub">'+p.d+'</div></div><span style="color:var(--muted)">›</span></div>';
-    }).join('')
-  );
-};
-window.crearDesdePlt=function(i){
-  cerrarPnl();var id='prog_'+Date.now();
-  window.programas[id]={nombre:PLTS[i].n,creado:Date.now(),municipios:[],seleccion:{},estados:{}};
-  window.guardarProgramas&&window.guardarProgramas();cambiarVista('programas');setTimeout(function(){window.abrirPrograma&&window.abrirPrograma(id);},100);
-};
-
-// ================================================================
-// DUPLICAR PROGRAMA
-// ================================================================
-window.dupProg=function(id){
-  var p=window.programas[id];if(!p)return;
-  var nid='prog_'+Date.now();
-  window.programas[nid]=JSON.parse(JSON.stringify(p));
-  window.programas[nid].nombre=(p.nombre||'Programa')+' (copia)';
-  window.programas[nid].creado=Date.now();
-  window.guardarProgramas&&window.guardarProgramas();window.renderProgramas&&window.renderProgramas();
-};
-
-// ================================================================
-// IMPORT / EXPORT PROGRAMAS
-// ================================================================
-window.exportProgJSON=function(){
-  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({v:1,fecha:new Date().toISOString(),programas:window.programas},null,2)],{type:'application/json'}));
-  a.download='programas_censo.json';a.click();
-};
-window.importProgJSON=function(inp){
-  var f=inp.files[0];if(!f)return;
-  var r2=new FileReader();r2.onload=function(e){
-    try{
-      var obj=JSON.parse(e.target.result);var imp=obj.programas||obj;
-      var keys=Object.keys(imp);if(!keys.length)throw new Error('Sin programas');
-      if(!confirm('Importar '+keys.length+' programa(s)?'))return;
-      keys.forEach(function(k){window.programas[k]=imp[k];});
-      window.guardarProgramas&&window.guardarProgramas();window.renderProgramas&&window.renderProgramas();
-    }catch(err){alert('Error: '+err.message);}
-  };
-  r2.readAsText(f);inp.value='';
-};
-
-// ================================================================
-// EXPORT EXCEL PROGRAMA
-// ================================================================
-window.expProgExcel=function(progId){
-  var p=window.programas[progId];if(!p)return;
-  if(typeof XLSX==='undefined'){alert('Librería Excel no cargada — necesita internet.');return;}
-  var sels=Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];});
-  var coms=sels.map(function(k){return DATOS.find(function(r){return cId(r)===k;});}).filter(Boolean);
-  if(!coms.length){alert('Sin comunidades marcadas.');return;}
-  var rows=[['Comunidad','Municipio','Provincia','Departamento','Tipo','Lat','Lon','Población','%Agua','%SinSanea','%Elec','Score']];
-  coms.forEach(function(r){rows.push([r.com,r.mun,r.prov,r.dep,r.tipo,r.lat||'',r.lon||'',r.pT||0,pctAgua(r),pctSanea(r),pctElec(r),calcScore(r)]);});
-  var wb=XLSX.utils.book_new();var ws=XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb,ws,'Comunidades');
-  XLSX.writeFile(wb,(p.nombre||'Programa').replace(/[^a-zA-Z0-9]/g,'_')+'_INE.xlsx');
-};
-
-// ================================================================
-// EXPORT CSV / GEOJSON / KML
-// ================================================================
-window.exportCSV=function(){
-  var base=filtrados.length?filtrados:DATOS;
-  var esc=function(v){var s=String(v==null?'':v);return s.includes(',')?'"'+s.replace(/"/g,'""')+'"':s;};
-  var cols=[['Comunidad','com'],['Municipio','mun'],['Provincia','prov'],['Departamento','dep'],['Tipo','tipo'],['Lat','lat'],['Lon','lon'],['Población','pT'],['Agua cañería','aCan'],['Sin saneam.','snNo'],['Elec. pub','elPub']];
-  var csv=cols.map(function(c){return esc(c[0]);}).join(',')+'\n'+base.map(function(r){return cols.map(function(c){return esc(r[c[1]]);}).join(',');}).join('\n');
-  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
-  a.download='censo_'+(document.getElementById('fDep').value||'Bolivia')+'_'+base.length+'com.csv';a.click();
-};
-window.exportGeoJSON=function(){
-  var base=filtrados.length?filtrados:DATOS;
-  var gj={type:'FeatureCollection',features:base.filter(function(r){return r.lat&&r.lon;}).map(function(r){
-    return {type:'Feature',geometry:{type:'Point',coordinates:[r.lon,r.lat]},
-      properties:{nombre:r.com,municipio:r.mun,provincia:r.prov,departamento:r.dep,tipo:r.tipo,
-        poblacion:r.pT||0,pct_agua:pctAgua(r),pct_sin_sanea:pctSanea(r),score:calcScore(r)}};
-  })};
-  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(gj,null,2)],{type:'application/geo+json'}));
-  a.download='censo_bolivia.geojson';a.click();
-};
-window.exportKML=function(){
-  var base=filtrados.length?filtrados:DATOS;
-  var kml='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>Censo Bolivia</name>\n';
-  base.filter(function(r){return r.lat&&r.lon;}).forEach(function(r){
-    kml+='<Placemark><name>'+r.com.replace(/&/g,'&amp;')+'</name><description>'+r.mun+', '+r.dep+' | Pob:'+(r.pT||0)+' | Agua:'+pctAgua(r)+'%</description><Point><coordinates>'+r.lon+','+r.lat+',0</coordinates></Point></Placemark>\n';
-  });
-  kml+='</Document>\n</kml>';
-  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}));
-  a.download='censo_bolivia.kml';a.click();
-};
-
-// ================================================================
-// COMPARTIR IMAGEN
-// ================================================================
-window.compartirImg=function(){
-  if(!comActual||typeof html2canvas==='undefined')return;
-  html2canvas(document.getElementById('mBody'),{backgroundColor:'#f6f4ee',scale:2,useCORS:true,logging:false}).then(function(canvas){
+window.capturarMapa=function(){
+  if(typeof html2canvas==='undefined'){alert('html2canvas no disponible.');return;}
+  html2canvas($id('mapaEl'),{useCORS:true,logging:false,scale:2}).then(function(canvas){
     canvas.toBlob(function(blob){
-      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([blob],'ficha.png',{type:'image/png'})]})){
-        navigator.share({title:comActual.com,files:[new File([blob],'ficha_censo.png',{type:'image/png'})]});
-      }else{
-        var a=document.createElement('a');a.href=URL.createObjectURL(blob);
-        a.download=comActual.com.replace(/[^a-zA-Z0-9]/g,'_')+'_ficha.png';a.click();
-      }
+      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([blob],'mapa.png',{type:'image/png'})]})){navigator.share({title:'Mapa Censo Bolivia',files:[new File([blob],'mapa_censo.png',{type:'image/png'})]});}
+      else{var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mapa_censo_bolivia.png';a.click();}
     },'image/png');
   });
 };
 
-// ================================================================
-// SWIPE-DOWN PARA CERRAR MODAL (iPhone)
-// ================================================================
-(function(){
-  var card=document.getElementById('modalCard');if(!card)return;
-  var sy=0,drag=false;
-  card.addEventListener('touchstart',function(e){
-    var b=document.getElementById('mBody');
-    if(b&&b.scrollTop<=2){sy=e.touches[0].clientY;drag=true;}
-  },{passive:true});
-  card.addEventListener('touchmove',function(e){
-    if(!drag)return;var dy=e.touches[0].clientY-sy;
-    if(dy>0){card.style.cssText='transform:translateY('+Math.min(dy*.55,160)+'px);opacity:'+Math.max(1-dy/350,.5)+';transition:none';}
-  },{passive:true});
-  card.addEventListener('touchend',function(e){
-    if(!drag)return;drag=false;
-    var dy=e.changedTouches[0].clientY-sy;
-    card.style.transition='transform .2s,opacity .2s';
-    if(dy>100){card.style.transform='translateY(100%)';card.style.opacity='0';setTimeout(function(){cerrarModal();card.removeAttribute('style');},200);}
-    else card.removeAttribute('style');
-  },{passive:true});
+/* ════════════════════ MINI MAPA ════════════════════ */
+function iniciarMiniMapa(r){var w=$id('miniMapW');if(!w)return;if(!r||!r.lat||!r.lon){w.style.display='none';return;}w.style.display='block';w.style.height='162px';if(miniMapObj){miniMapObj.remove();miniMapObj=null;}w.innerHTML='<div id="miniMapEl" style="width:100%;height:100%"></div>';setTimeout(function(){miniMapObj=L.map('miniMapEl',{zoomControl:true,attributionControl:false,scrollWheelZoom:false}).setView([r.lat,r.lon],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(miniMapObj);L.circleMarker([r.lat,r.lon],{radius:9,color:'#fff',weight:2.5,fillColor:'#c44536',fillOpacity:.95}).addTo(miniMapObj);},80);}
 
-// ── Botones extras en programas (observer en vez de wrapper) ──────────
+/* ════════════════════ FAVORITOS ════════════════════ */
+function cargarFavs(){return lsGet('censo_favs')||[];}
+function esFav(r){return cargarFavs().some(function(f){return f.id===cId(r);});}
+window.toggleFav=function(){if(!comActual)return;var id=cId(comActual),favs=cargarFavs();var i=favs.findIndex(function(f){return f.id===id;});if(i>=0)favs.splice(i,1);else favs.unshift({id:id,com:comActual.com,mun:comActual.mun,pT:comActual.pT,ts:Date.now()});lsSet('censo_favs',favs);actualizarFavBtn();actualizarFavBdg();};
+function actualizarFavBtn(){if(!comActual)return;var es=esFav(comActual);var btn=$id('btnFavModal');if(btn){btn.textContent=es?'★':'☆';btn.style.color=es?'#e6b800':'';}var fi=$id('cFavIco');if(fi)fi.textContent=es?'★':'☆';}
+function actualizarFavBdg(){var n=cargarFavs().length,el=$id('favBdg');if(el){el.style.display=n>0?'flex':'none';el.textContent=n>9?'9+':n;}}
+actualizarFavBdg();
+function addHist(r){var h=lsGet('censo_hist')||[],id=cId(r);h=h.filter(function(x){return x.id!==id;});h.unshift({id:id,com:r.com,mun:r.mun,pT:r.pT,ts:Date.now()});if(h.length>10)h.pop();lsSet('censo_hist',h);}
+window.abrirPanel=function(tipo){var items=tipo==='favs'?cargarFavs():(lsGet('censo_hist')||[]);$id('prHead').innerHTML=(tipo==='favs'?'⭐ Favoritos':'🕐 Recientes')+'<button onclick="cerrarPR()" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer">✕</button>';$id('prBody').innerHTML=items.length?items.map(function(h){var idx=DATOS.findIndex(function(r){return cId(r)===h.id;});return '<div class="pr-item" onclick="cerrarPR();if('+idx+'>=0)abrirModal('+idx+')"><span class="d-ico">'+(tipo==='favs'?'⭐':'🕐')+'</span><div class="d-inf"><div class="d-nom">'+h.com+'</div><div class="d-sub">'+h.mun+' · '+(h.pT||0).toLocaleString()+' hab.</div></div><span style="color:var(--muted)">›</span></div>';}).join(''):'<div style="text-align:center;padding:22px;color:var(--muted);font-size:.82rem">'+(tipo==='favs'?'Sin favoritos. Toca ☆ en la ficha.':'Sin historial todavía.')+'</div>';$id('prOv').classList.add('activo');};
+window.cerrarPR=function(){$id('prOv').classList.remove('activo');};
+
+/* ════════════════════ MODO CAMPO ════════════════════ */
+window.abrirCampo=function(){if(!comActual)return;var r=comActual;$id('cNom').textContent=r.com;$id('cMeta').textContent=r.mun+', '+r.prov+' · '+r.dep+' · '+r.tipo;refreshCampo();var cc=$id('cCoords');if(cc&&r.lat){cc.style.display='flex';$id('cCoordsV').textContent=r.lat.toFixed(5)+'°S, '+Math.abs(r.lon).toFixed(5)+'°O';}$id('campoOv').classList.add('activo');};
+window.cerrarCampo=function(){$id('campoOv').classList.remove('activo');};
+window.refreshCampo=function(){if(!comActual)return;var r=comActual;var a=pctA(r),s=pctS(r),e=pctE(r);$id('cSems').innerHTML=[{i:'💧',v:a,l:'Agua',inv:false},{i:'🚽',v:s,l:'Sin sanea.',inv:true},{i:'⚡',v:e,l:'Elec.',inv:false}].map(function(x){return '<div class="c-sem" style="background:'+semBg(x.v,x.inv)+'"><span style="font-size:1.6rem">'+x.i+'</span><span class="c-sem-p" style="color:'+semCl(x.v,x.inv)+'">'+x.v+'%</span><span class="c-sem-l">'+x.l+'</span></div>';}).join('');var sc=scoreR(r),c2=sc>=60?'#c44536':sc>=30?'#dba017':'#3a8a40';$id('cScore').innerHTML='<div style="font-size:.67rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Índice de prioridad</div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:9px;background:var(--line);border-radius:5px;overflow:hidden"><div style="width:'+sc+'%;height:100%;background:'+c2+'"></div></div><span style="font-size:1rem;font-weight:900;color:'+c2+'">'+sc+'/100</span></div><div style="font-size:.69rem;color:'+c2+';font-weight:700;margin-top:3px">'+(sc>=60?'CRÍTICA':sc>=30?'MEDIA':'BAJA')+'</div>';var fi=$id('cFavIco');if(fi)fi.textContent=esFav(r)?'★':'☆';};
+
+/* ════════════════════ NOTAS ════════════════════ */
+window.abrirNotas=function(){renderNotas();$id('notasOv').classList.add('activo');};
+window.cerrarNotas=function(){$id('notasOv').classList.remove('activo');};
+function renderNotas(){var n=lsGet('censo_notas')||[];$id('notasBody').innerHTML=n.length?n.map(function(x,i){return '<div class="nota-g"><div class="nota-g-t">'+x.t+'</div><div class="nota-g-m"><span>'+new Date(x.ts).toLocaleDateString('es',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'</span><button onclick="delNota('+i+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem">🗑</button></div></div>';}).join(''):'<div style="text-align:center;padding:18px;color:var(--muted);font-size:.82rem">Sin notas. Escribí la primera abajo.</div>';var bdg=$id('notasBdg');if(bdg){bdg.style.display=n.length>0?'flex':'none';bdg.textContent=n.length;}}
+window.guardarNota=function(){var inp=$id('notaInp');var t=(inp.value||'').trim();if(!t)return;var n=lsGet('censo_notas')||[];n.unshift({t:t,ts:Date.now()});lsSet('censo_notas',n);inp.value='';renderNotas();};
+window.delNota=function(i){var n=lsGet('censo_notas')||[];n.splice(i,1);lsSet('censo_notas',n);renderNotas();};
+
+/* ════════════════════ ALERTAS ════════════════════ */
+window.toggleAlerta=function(){if(!comActual)return;var id=cId(comActual),al=lsGet('censo_al')||{};if(al[id])delete al[id];else al[id]={com:comActual.com,mun:comActual.mun,ts:Date.now()};lsSet('censo_al',al);var btn=$id('btnAlertaM');if(btn)btn.textContent=al[id]?'🚩 Alertada':'🏳️ Alertar';var n=Object.keys(al).length,bdg=$id('alertaBdg');if(bdg){bdg.style.display=n>0?'flex':'none';bdg.textContent=n;}};
+window.abrirAlertas=function(){var al=lsGet('censo_al')||{};var ids=Object.keys(al);var w=document.createElement('div');w.id='alW';w.style.cssText='position:fixed;inset:0;z-index:870;background:rgba(19,32,28,.5);display:flex;align-items:flex-end';w.innerHTML='<div style="background:var(--paper);border-radius:18px 18px 0 0;width:100%;max-height:70vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0)"><div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:.9rem">🚩 Alertas ('+ids.length+')</span><button onclick="$id(\'alW\').remove()" style="background:none;border:none;font-size:1.2rem;color:var(--muted)">✕</button></div><div style="overflow-y:auto;flex:1;padding:10px 13px">'+(ids.length?ids.map(function(id){var a=al[id];var idx=DATOS.findIndex(function(r){return cId(r)===id;});return '<div class="d-item" onclick="$id(\'alW\').remove();if('+idx+'>=0)abrirModal('+idx+')"><span class="d-ico">🚩</span><div class="d-inf"><div class="d-nom">'+a.com+'</div><div class="d-sub">'+a.mun+'</div></div><span style="color:var(--muted)">›</span></div>';}).join(''):'<div style="text-align:center;padding:20px;color:var(--muted);font-size:.82rem">Sin alertas. Toca 🏳️ en la ficha.</div>')+'</div></div>';w.onclick=function(e){if(e.target.id==='alW')w.remove();};document.body.appendChild(w);};
+
+/* ════════════════════ CALC ════════════════════ */
+window.abrirCalc=function(){$id('calcOv').classList.add('activo');recalcInv();};
+window.cerrarCalc=function(){$id('calcOv').classList.remove('activo');};
+window.recalcInv=function(){var ca=parseFloat($id('cCA').value)||8500;var cs2=parseFloat($id('cCS').value)||5200;var ce=parseFloat($id('cCE').value)||4800;var base=(filtrados.length?filtrados:DATOS).slice(0,200);var tA=0,tS=0,tE=0;base.forEach(function(r){var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);var et=(r.elPub||0)+(r.elNo||0);tA+=(at>0?at-((r.aCan||0)+(r.aPil||0)):(r.vT||0))*ca;tS+=(st>0?(r.snNo||0):(r.vT||0))*cs2;tE+=(et>0?et-(r.elPub||0):(r.vT||0))*ce;});var res=$id('calcRes');res.style.display='block';res.innerHTML='<div class="calc-tot">'+fmtM(tA+tS+tE)+'</div><div style="font-size:.72rem;color:var(--muted);margin-top:3px">'+base.length+' comunidades · Agua: '+fmtM(tA)+' · Sanea: '+fmtM(tS)+' · Elec: '+fmtM(tE)+'</div>';};
+
+/* ════════════════════ PANEL UNIVERSAL ════════════════════ */
+window.cerrarPnl=function(){var o=$id('pnlOv');if(o)o.classList.remove('activo');if(scatterCh){scatterCh.destroy();scatterCh=null;}};
+function abrirPnl(tit,html2){$id('pnlTit').textContent=tit;$id('pnlBody').innerHTML=html2;$id('pnlOv').classList.add('activo');}
+
+/* ════════════════════ SCATTER ════════════════════ */
+window.abrirScatter=function(){$id('pnlTit').textContent='📈 Agua vs Saneamiento';$id('pnlBody').innerHTML='<div style="font-size:.71rem;color:var(--muted);margin-bottom:8px">Toca un punto para ver la ficha. 🔴=crítica 🟡=media 🟢=baja</div><canvas id="sCvs" style="max-height:280px"></canvas><div id="sInfo" style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:5px"></div>';$id('pnlOv').classList.add('activo');var base=(filtrados.length?filtrados:DATOS).filter(function(r){return r.lat;}).slice(0,2000);var ds=base.map(function(r){var sc=scoreR(r);return {x:pctA(r),y:pctS(r),_i:DATOS.indexOf(r),backgroundColor:sc>=60?'rgba(196,69,54,.65)':sc>=30?'rgba(210,140,30,.65)':'rgba(46,122,56,.65)'};});if(scatterCh)scatterCh.destroy();scatterCh=new Chart($id('sCvs').getContext('2d'),{type:'scatter',data:{datasets:[{data:ds,pointRadius:4,pointHoverRadius:7,backgroundColor:ds.map(function(d){return d.backgroundColor;})}]},options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){var r=DATOS[ds[c.dataIndex]._i];return r?r.com+' ('+r.mun+')':'';}}}},scales:{x:{title:{display:true,text:'% Agua segura',font:{size:10}},min:0,max:100},y:{title:{display:true,text:'% Sin saneamiento',font:{size:10}},min:0,max:100}},onClick:function(e,els){if(!els.length)return;cerrarPnl();abrirModal(ds[els[0].index]._i);}}});$id('sInfo').textContent=base.length+' comunidades mostradas';};
+
+/* ════════════════════ BRECHA ════════════════════ */
+window.abrirBrechas=function(){var deps={};DATOS.forEach(function(r){var d=r.dep||'S/D';if(!deps[d])deps[d]={p:0,sA:0,sS:0,sE:0};var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);var et=(r.elPub||0)+(r.elNo||0);var p=r.pT||0;deps[d].p+=p;deps[d].sA+=at>0?p*(1-((r.aCan||0)+(r.aPil||0))/at):p;deps[d].sS+=st>0?p*(r.snNo||0)/st:p;deps[d].sE+=et>0?p*(1-(r.elPub||0)/et):p;});var list=Object.keys(deps).filter(function(k){return k!=='S/D';}).sort(function(a,b){return(deps[b].sA/Math.max(1,deps[b].p))-(deps[a].sA/Math.max(1,deps[a].p));});function fN(n){return n>=1000?(n/1000).toFixed(1)+'K':Math.round(n)+''}var h='<div style="font-size:.7rem;color:var(--muted);margin-bottom:10px">% de población estimada sin acceso</div>';[{k:'sA',l:'Sin agua potable',c:'#c44536'},{k:'sS',l:'Sin saneamiento',c:'#dba017'},{k:'sE',l:'Sin electricidad',c:'#5c8a3a'}].forEach(function(ind){h+='<div style="margin-bottom:14px"><div style="font-size:.74rem;font-weight:800;color:var(--muted);margin-bottom:5px">'+ind.l+'</div>';var mx=Math.max.apply(null,list.map(function(d){return deps[d][ind.k];}));list.forEach(function(d){var v=deps[d][ind.k],pct=deps[d].p>0?Math.round(v/deps[d].p*100):0;h+='<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--line)"><span style="flex:0 0 70px;font-size:.71rem;font-weight:700">'+d.substring(0,9)+'</span><div style="flex:1;background:var(--line);border-radius:3px;height:7px;overflow:hidden"><div style="width:'+(mx?v/mx*100:0)+'%;height:100%;background:'+ind.c+'"></div></div><span style="flex:0 0 30px;font-size:.7rem;text-align:right;font-weight:700">'+pct+'%</span><span style="flex:0 0 36px;font-size:.67rem;color:var(--muted);text-align:right">'+fN(v)+'</span></div>';});h+='</div>';});abrirPnl('📉 Brecha por departamento',h);};
+
+/* ════════════════════ RANKING ════════════════════ */
+window.abrirRanking=function(){var base=(filtrados.length?filtrados:DATOS).slice().sort(function(a,b){return scoreR(b)-scoreR(a);}).slice(0,30);var h='<div style="font-size:.73rem;color:var(--muted);margin-bottom:8px">Top 30 más críticas — toca para ver la ficha</div>';base.forEach(function(r,i){var sc=scoreR(r);var idx=DATOS.indexOf(r);h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="cerrarPnl();abrirModal('+idx+')"><span style="flex:0 0 20px;font-weight:800;font-size:.77rem;color:var(--muted)">'+(i+1)+'</span><div style="flex:1;min-width:0"><div style="font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.com+'</div><div style="font-size:.67rem;color:var(--muted)">'+r.mun+'</div></div>'+pill(sc)+'</div>';});abrirPnl('🏆 Ranking de prioridad',h);};
+
+/* ════════════════════ SIMILARES ════════════════════ */
+window.abrirSimilares=function(){if(!comActual)return;var r=comActual;var a=pctA(r),s=pctS(r),e=pctE(r);var sims=DATOS.filter(function(d){return d!==r&&d.mun!==r.mun;}).map(function(d){return {d:d,dist:Math.sqrt(Math.pow(a-pctA(d),2)+Math.pow(s-pctS(d),2)*1.2+Math.pow(e-pctE(d),2)*.5)};}).sort(function(a2,b){return a2.dist-b.dist;}).slice(0,10);var h='<div style="font-size:.71rem;color:var(--muted);padding-bottom:9px">Similares a <b>'+r.com+'</b></div>';sims.forEach(function(s2){var idx=DATOS.indexOf(s2.d);var sim=Math.max(0,Math.round(100-s2.dist));h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="cerrarPnl();abrirModal('+idx+')"><span style="padding:2px 7px;border-radius:6px;font-size:.64rem;font-weight:800;background:var(--agua-l);color:var(--agua-d);flex:0 0 auto">'+sim+'%</span><div style="flex:1;min-width:0"><div style="font-size:.83rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s2.d.com+'</div><div style="font-size:.67rem;color:var(--muted)">'+s2.d.mun+', '+s2.d.dep+'</div></div><span style="color:var(--muted)">›</span></div>';});abrirPnl('🔍 Comunidades similares',h);};
+
+/* ════════════════════ FILTRO AVANZADO ════════════════════ */
+var INDS=[{k:'pT',l:'Población'},{k:'_agua',l:'% agua segura'},{k:'_sanea',l:'% sin saneamiento'},{k:'_elec',l:'% electricidad'},{k:'_score',l:'Score prioridad'}];
+window.abrirFiltroAv=function(){condsFAv=[{ind:'_agua',op:'<',val:50}];renderFAv();$id('pnlOv').classList.add('activo');$id('pnlTit').textContent='🔬 Filtro avanzado';};
+function renderFAv(){var h=condsFAv.map(function(c,i){return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><select onchange="condsFAv['+i+'].ind=this.value" style="flex:1;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.76rem;background:var(--card);color:var(--ink)">'+INDS.map(function(x){return '<option value="'+x.k+'"'+(x.k===c.ind?' selected':'')+'>'+x.l+'</option>';}).join('')+'</select><select onchange="condsFAv['+i+'].op=this.value" style="width:48px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.8rem;background:var(--card);color:var(--ink)">'+['<','<=','=','>=','>'].map(function(o){return '<option'+(o===c.op?' selected':'')+'>'+o+'</option>';}).join('')+'</select><input type="number" value="'+c.val+'" onchange="condsFAv['+i+'].val=+this.value" style="width:55px;padding:5px;border:1px solid var(--line);border-radius:7px;font-size:.8rem;background:var(--card);color:var(--ink)"><button onclick="condsFAv.splice('+i+',1);refreshFAv()" style="background:none;border:none;font-size:1rem;color:var(--muted);cursor:pointer">🗑</button></div>';}).join('');h+='<button onclick="condsFAv.push({ind:\'_agua\',op:\'<\',val:50});refreshFAv()" style="width:100%;padding:8px;border:1px dashed var(--agua);border-radius:9px;color:var(--agua);font-weight:700;font-size:.79rem;background:none;margin-top:5px">＋ Condición</button><button onclick="aplicarFAv()" style="width:100%;padding:10px;background:var(--agua);color:#fff;border:none;border-radius:9px;font-weight:800;font-size:.83rem;margin-top:9px">Aplicar filtro</button>';$id('pnlBody').innerHTML=h;}
+window.refreshFAv=function(){renderFAv();};
+function valInd(r,k){if(k==='pT')return r.pT||0;if(k==='_score')return scoreR(r);if(k==='_agua')return pctA(r);if(k==='_sanea')return pctS(r);if(k==='_elec')return pctE(r);return 0;}
+function aplicarFAv(){filtrados=DATOS.filter(function(r){return condsFAv.every(function(c){var v=valInd(r,c.ind);return c.op==='<'?v<c.val:c.op==='<='?v<=c.val:c.op==='='?v===c.val:c.op==='>='?v>=c.val:v>c.val;});});cerrarPnl();cambiarVista('lista');render();pintarMapa();}
+
+/* ════════════════════ AUTOCOMPLETE ════════════════════ */
+function onSearch(v){var list=$id('acList');if(!list)return;if(!v||v.length<2||!window.datosListos){list.classList.remove('vis');return;}var q=norm(v);var m=DATOS.filter(function(r){return norm(r.com).includes(q);}).slice(0,8);if(!m.length){list.classList.remove('vis');return;}list.innerHTML=m.map(function(r){return '<div class="ac-item" onmousedown="selAC(\''+r.com.replace(/\'/g,"\\'")+'\')"><span class="ac-com">'+r.com+'</span> <span class="ac-mun">'+r.mun+', '+r.dep+'</span></div>';}).join('');list.classList.add('vis');}
+window.selAC=function(nom){var f=$id('fBuscar');if(f)f.value=nom;var l=$id('acList');if(l)l.classList.remove('vis');window.aplicarFiltros&&window.aplicarFiltros();};
+
+/* ════════════════════ DASHBOARD ════════════════════ */
+window.renderDashboard=function(){var kpis=$id('dKpis');if(!kpis||!window.datosListos)return;var totP=suma(DATOS,'pT');var sinA=DATOS.reduce(function(s,r){var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);return s+(at>0?((at-(r.aCan||0)-(r.aPil||0))/at*(r.pT||0)):0);},0);kpis.innerHTML='<div class="d-kpi"><div class="d-kpi-v">'+DATOS.length.toLocaleString()+'</div><div class="d-kpi-l">Comunidades</div></div><div class="d-kpi"><div class="d-kpi-v">'+(totP/1e6).toFixed(2)+'M</div><div class="d-kpi-l">Habitantes rurales</div></div><div class="d-kpi"><div class="d-kpi-v" style="color:var(--rojo)">'+Math.round(sinA/totP*100)+'%</div><div class="d-kpi-l">Sin agua segura</div></div><div class="d-kpi"><div class="d-kpi-v">9</div><div class="d-kpi-l">Departamentos</div></div>';var progs=window.programas||{};var pids=Object.keys(progs).sort(function(a,b){return(progs[b].creado||0)-(progs[a].creado||0);}).slice(0,3);$id('dProgs').innerHTML=pids.length?pids.map(function(id){var p=progs[id];var n=Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];}).length;return '<div class="d-item" onclick="cambiarVista(\'programas\');setTimeout(function(){abrirPrograma&&abrirPrograma(\''+id+'\')},100)"><span class="d-ico">📊</span><div class="d-inf"><div class="d-nom">'+(p.nombre||'Sin nombre')+'</div><div class="d-sub">'+(p.municipios||[]).length+' municipios · '+n+' com.</div></div><span style="color:var(--muted)">›</span></div>';}).join(''):'<div style="font-size:.8rem;color:var(--muted)">Sin programas. <span onclick="cambiarVista(\'programas\')" style="color:var(--agua);cursor:pointer">Crear →</span></div>';var hist=lsGet('censo_hist')||[];$id('dRecientes').innerHTML=hist.length?hist.slice(0,5).map(function(h){var idx=DATOS.findIndex(function(r){return cId(r)===h.id;});return '<div class="d-item" onclick="if('+idx+'>=0)abrirModal('+idx+')"><span class="d-ico">🕐</span><div class="d-inf"><div class="d-nom">'+h.com+'</div><div class="d-sub">'+h.mun+' · '+(h.pT||0).toLocaleString()+' hab.</div></div><span style="color:var(--muted)">›</span></div>';}).join(''):'<div style="font-size:.8rem;color:var(--muted)">Abrí fichas para verlas acá.</div>';};
+
+/* ════════════════════ PLANTILLAS ════════════════════ */
+var PLTS=[{n:'Sin agua rural',i:'💧',d:'<500 hab, agua <30%'},{n:'Alta prioridad saneamiento',i:'🚽',d:'>60% sin saneamiento'},{n:'Pequeñas y críticas',i:'🆘',d:'<100 hab, agua <40%'},{n:'Sin electricidad',i:'⚡',d:'<20% cobertura eléctrica'},{n:'Revisión general',i:'📋',d:'Sin filtro adicional'}];
+window.mostrarPlantillas=function(){abrirPnl('📋 Crear desde plantilla','<div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">Seleccioná una plantilla</div>'+PLTS.map(function(p,i){return '<div class="d-item" style="margin-bottom:7px" onclick="crearDesdePlt('+i+')"><span class="d-ico">'+p.i+'</span><div class="d-inf"><div class="d-nom">'+p.n+'</div><div class="d-sub">'+p.d+'</div></div><span style="color:var(--muted)">›</span></div>';}).join(''));};
+window.crearDesdePlt=function(i){cerrarPnl();var id='prog_'+Date.now();window.programas[id]={nombre:PLTS[i].n,creado:Date.now(),municipios:[],seleccion:{},estados:{}};window.guardarProgramas&&window.guardarProgramas();cambiarVista('programas');setTimeout(function(){window.abrirPrograma&&window.abrirPrograma(id);},100);};
+window.dupProg=function(id){var p=window.programas[id];if(!p)return;var nid='prog_'+Date.now();window.programas[nid]=JSON.parse(JSON.stringify(p));window.programas[nid].nombre=(p.nombre||'Programa')+' (copia)';window.programas[nid].creado=Date.now();window.guardarProgramas&&window.guardarProgramas();window.renderProgramas&&window.renderProgramas();};
+
+/* ════════════════════ RUTA DE VISITA ════════════════════ */
+var rutaL=null;
+window.planificarRuta=function(progId){var p=window.programas[progId];if(!p)return;var sels=Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];});var coms=sels.map(function(k){return DATOS.find(function(r){return cId(r)===k;});}).filter(function(r){return r&&r.lat&&r.lon;});if(coms.length<2){alert('Mínimo 2 comunidades con coordenadas.');return;}var unvis=coms.slice(1),ordered=[coms[0]];while(unvis.length){var last=ordered[ordered.length-1];var best=unvis.reduce(function(b,r){var d=hv([last.lat,last.lon],[r.lat,r.lon]);return d<b.d?{r:r,d:d}:b;},{r:unvis[0],d:Infinity});ordered.push(best.r);unvis.splice(unvis.indexOf(best.r),1);}var totalKm=0;for(var i=1;i<ordered.length;i++)totalKm+=hv([ordered[i-1].lat,ordered[i-1].lon],[ordered[i].lat,ordered[i].lon]);if(rutaL){mapa.removeLayer(rutaL);rutaL=null;}rutaL=L.layerGroup();L.polyline(ordered.map(function(r){return[r.lat,r.lon];}),{color:'#c44536',weight:2.5,dashArray:'7,5',opacity:.8}).addTo(rutaL);ordered.forEach(function(r,i){L.marker([r.lat,r.lon],{icon:L.divIcon({html:'<div style="background:#c44536;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:800;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">'+(i+1)+'</div>',className:'',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(rutaL);});rutaL.addTo(mapa);cambiarVista('mapa');mapa.fitBounds(L.latLngBounds(ordered.map(function(r){return[r.lat,r.lon];})),{padding:[30,30]});setTimeout(function(){L.popup().setLatLng([ordered[0].lat,ordered[0].lon]).setContent('<b>Ruta optimizada</b><br>'+ordered.length+' paradas · ~'+totalKm.toFixed(0)+' km').openOn(mapa);},300);};
+
+/* ════════════════════ IMPORT/EXPORT ════════════════════ */
+window.exportProgJSON=function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({v:1,fecha:new Date().toISOString(),programas:window.programas},null,2)],{type:'application/json'}));a.download='programas_censo.json';a.click();};
+window.importProgJSON=function(inp){var f=inp.files[0];if(!f)return;var r2=new FileReader();r2.onload=function(e){try{var obj=JSON.parse(e.target.result);var imp=obj.programas||obj;var keys=Object.keys(imp);if(!keys.length)throw new Error('Sin programas');if(!confirm('Importar '+keys.length+' programa(s)?'))return;keys.forEach(function(k){window.programas[k]=imp[k];});window.guardarProgramas&&window.guardarProgramas();window.renderProgramas&&window.renderProgramas();}catch(err){alert('Error: '+err.message);}};r2.readAsText(f);inp.value='';};
+window.expProgExcel=function(progId){var p=window.programas[progId];if(!p)return;if(typeof XLSX==='undefined'){alert('Librería Excel no disponible (necesita internet).');return;}var sels=Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];});var coms=sels.map(function(k){return DATOS.find(function(r){return cId(r)===k;});}).filter(Boolean);if(!coms.length){alert('Sin comunidades marcadas.');return;}var rows=[['Comunidad','Municipio','Provincia','Departamento','Tipo','Lat','Lon','Población','%Agua','%SinSanea','%Elec','Score']];coms.forEach(function(r){rows.push([r.com,r.mun,r.prov,r.dep,r.tipo,r.lat||'',r.lon||'',r.pT||0,pctA(r),pctS(r),pctE(r),scoreR(r)]);});var wb=XLSX.utils.book_new();var ws=XLSX.utils.aoa_to_sheet(rows);XLSX.utils.book_append_sheet(wb,ws,'Comunidades');XLSX.writeFile(wb,(p.nombre||'Programa').replace(/[^a-zA-Z0-9]/g,'_')+'_INE.xlsx');};
+
+/* ════════════════════ EXPORTS CSV/GEO/KML ════════════════════ */
+window.exportCSV=function(){var base=filtrados.length?filtrados:DATOS;var esc=function(v){var s=String(v==null?'':v);return s.includes(',')?'"'+s.replace(/"/g,'""')+'"':s;};var cols=[['Comunidad','com'],['Municipio','mun'],['Provincia','prov'],['Departamento','dep'],['Tipo','tipo'],['Lat','lat'],['Lon','lon'],['Población','pT'],['AguaCañería','aCan'],['SinSaneamiento','snNo'],['ElecPublica','elPub']];var csv=cols.map(function(c){return esc(c[0]);}).join(',')+'\n'+base.map(function(r){return cols.map(function(c){return esc(r[c[1]]);}).join(',');}).join('\n');var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));a.download='censo_'+($id('fDep').value||'Bolivia')+'_'+base.length+'com.csv';a.click();};
+window.exportGeoJSON=function(){var base=filtrados.length?filtrados:DATOS;var gj={type:'FeatureCollection',features:base.filter(function(r){return r.lat&&r.lon;}).map(function(r){return {type:'Feature',geometry:{type:'Point',coordinates:[r.lon,r.lat]},properties:{nombre:r.com,municipio:r.mun,provincia:r.prov,departamento:r.dep,tipo:r.tipo,poblacion:r.pT||0,pct_agua:pctA(r),pct_sin_sanea:pctS(r),score:scoreR(r)}};})};var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(gj,null,2)],{type:'application/geo+json'}));a.download='censo_bolivia.geojson';a.click();};
+window.exportKML=function(){var base=filtrados.length?filtrados:DATOS;var kml='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>Censo Bolivia</name>\n';base.filter(function(r){return r.lat&&r.lon;}).forEach(function(r){kml+='<Placemark><name>'+r.com.replace(/&/g,'&amp;')+'</name><description>'+r.mun+', '+r.dep+' | Pob:'+(r.pT||0)+' | Agua:'+pctA(r)+'%</description><Point><coordinates>'+r.lon+','+r.lat+',0</coordinates></Point></Placemark>\n';});kml+='</Document>\n</kml>';var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}));a.download='censo_bolivia.kml';a.click();};
+
+/* ════════════════════ COMPARTIR IMAGEN ════════════════════ */
+window.compartirImg=function(){if(!comActual||typeof html2canvas==='undefined')return;html2canvas($id('mBody'),{backgroundColor:'#f6f4ee',scale:2,useCORS:true,logging:false}).then(function(canvas){canvas.toBlob(function(blob){if(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([blob],'ficha.png',{type:'image/png'})]})){navigator.share({title:comActual.com,files:[new File([blob],'ficha_censo.png',{type:'image/png'})]});}else{var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=comActual.com.replace(/[^a-zA-Z0-9]/g,'_')+'_ficha.png';a.click();}});});};
+
+/* ════════════════════ BOTONES EXTRAS PROGRAMAS ════════════════════ */
 function addProgExtras(){
-  // Botón plantillas
-  var bNuevo=document.querySelector('.btn-nuevo-prog');
-  if(bNuevo&&!document.getElementById('btnPlantillasX')){
-    var bp=document.createElement('button');
-    bp.id='btnPlantillasX';
-    bp.style.cssText='display:block;width:100%;margin-bottom:10px;padding:10px;border:1px solid var(--agua-l);border-radius:11px;background:var(--agua-l);color:var(--agua-d);font-weight:800;font-size:.81rem;cursor:pointer;-webkit-tap-highlight-color:transparent';
-    bp.textContent='📋 Crear desde plantilla';bp.onclick=mostrarPlantillas;
-    bNuevo.parentNode.insertBefore(bp,bNuevo);
-  }
-  // Botones import/export
-  var st=document.querySelector('#vProgramas .seccion-titulo');
-  if(st&&!document.getElementById('btnExpJSONX')){
-    var d=document.createElement('div');d.style='display:flex;gap:6px;align-items:center';
-    d.innerHTML='<button id="btnExpJSONX" onclick="exportProgJSON()" style="padding:4px 9px;border:1px solid var(--line);border-radius:7px;font-size:.71rem;color:var(--muted);background:var(--card);cursor:pointer">⬇ JSON</button>'
-      +'<label style="padding:4px 9px;border:1px solid var(--line);border-radius:7px;font-size:.71rem;color:var(--muted);background:var(--card);cursor:pointer">⬆ Importar<input type="file" accept=".json" style="display:none" onchange="importProgJSON(this)"></label>';
-    st.appendChild(d);
-  }
-  // Botones duplicar+excel en cada tarjeta
+  var bN=$q('.btn-nuevo-prog');
+  if(bN&&!$id('btnPlantX')){var bp=document.createElement('button');bp.id='btnPlantX';bp.style.cssText='display:block;width:100%;margin-bottom:10px;padding:10px;border:1px solid var(--agua-l);border-radius:11px;background:var(--agua-l);color:var(--agua-d);font-weight:800;font-size:.81rem;cursor:pointer;-webkit-tap-highlight-color:transparent';bp.textContent='📋 Crear desde plantilla';bp.onclick=window.mostrarPlantillas;bN.parentNode.insertBefore(bp,bN);}
+  var st=$q('#vProgramas .seccion-titulo');
+  if(st&&!$id('btnExpJX')){var d=document.createElement('div');d.style='display:flex;gap:6px;align-items:center';d.innerHTML='<button id="btnExpJX" onclick="exportProgJSON()" style="padding:4px 9px;border:1px solid var(--line);border-radius:7px;font-size:.71rem;color:var(--muted);background:var(--card);cursor:pointer">⬇ JSON</button><label style="padding:4px 9px;border:1px solid var(--line);border-radius:7px;font-size:.71rem;color:var(--muted);background:var(--card);cursor:pointer">⬆ Import<input type="file" accept=".json" style="display:none" onchange="importProgJSON(this)"></label>';st.appendChild(d);}
   document.querySelectorAll('.prog-card').forEach(function(card){
     if(card.querySelector('.prog-dup-btn'))return;
     var del=card.querySelector('.prog-card-del');if(!del)return;
-    var m=del.getAttribute('onclick');if(!m)return;
-    var id2=m.match(/'([^']+)'/);if(!id2)return;id2=id2[1];
-    var d2=document.createElement('button');
-    d2.className='prog-card-del prog-dup-btn';d2.title='Duplicar';d2.textContent='⎘';
-    d2.onclick=function(e){e.stopPropagation();dupProg(id2);};
-    var xe=document.createElement('button');
-    xe.className='prog-card-del';xe.style.fontSize='.67rem';xe.title='Excel';xe.textContent='📊';
-    xe.onclick=function(e){e.stopPropagation();expProgExcel(id2);};
-    del.parentNode.insertBefore(d2,del);del.parentNode.insertBefore(xe,del);
+    var m2=del.getAttribute('onclick');if(!m2)return;var id2=m2.match(/'([^']+)'/);if(!id2)return;id2=id2[1];
+    var d2=document.createElement('button');d2.className='prog-card-del prog-dup-btn';d2.title='Duplicar';d2.textContent='⎘';d2.onclick=function(e){e.stopPropagation();dupProg(id2);};
+    var xe=document.createElement('button');xe.className='prog-card-del';xe.style.fontSize='.67rem';xe.title='Excel';xe.textContent='📊';xe.onclick=function(e){e.stopPropagation();expProgExcel(id2);};
+    var rt=document.createElement('button');rt.className='prog-card-del';rt.title='Ruta';rt.textContent='🛣️';rt.onclick=function(e){e.stopPropagation();window.planificarRuta(id2);};
+    del.parentNode.insertBefore(d2,del);del.parentNode.insertBefore(xe,del);del.parentNode.insertBefore(rt,del);
   });
 }
-// Sobrescribir cambiarVista para añadir extras cuando se va a programas
-var _cvBase=window.cambiarVista;
-window.cambiarVista=function(v){
-  _cvBase(v);
-  if(v==='programas') setTimeout(addProgExtras,300);
+
+/* ════════════════════ PDF MEJORADO ════════════════════ */
+window.generarPDFMejorado=function(){
+  if(!comActual||typeof window.jspdf==='undefined'){window.abrirPreviaPDF&&window.abrirPreviaPDF();return;}
+  var r=comActual;var jsPDF=window.jspdf.jsPDF;var pdf=new jsPDF('p','mm','a4');
+  var pW=210,mL=14,mR=14,cW=pW-mL-mR,y=14;var cA=[31,122,140],cMu=[112,122,115],cI=[19,32,28];
+  pdf.setFillColor.apply(pdf,cA);pdf.rect(0,0,pW,28,'F');pdf.setTextColor(255,255,255);pdf.setFont(undefined,'bold');pdf.setFontSize(11);pdf.text(r.com,pW/2,11,{align:'center'});pdf.setFontSize(7.5);pdf.setFont(undefined,'normal');pdf.text(r.mun+' · '+r.prov+' · '+r.dep+' · '+r.tipo,pW/2,17,{align:'center'});pdf.text('Censo INE Bolivia · Score: '+scoreR(r)+'/100',pW/2,23,{align:'center'});y=36;
+  [{l:'Agua segura',v:pctA(r),inv:false},{l:'Sin saneamiento',v:pctS(r),inv:true},{l:'Electricidad',v:pctE(r),inv:false}].forEach(function(s,i2){var kw=cW/3-3,kx=mL+i2*(kw+4.5);var c2=s.inv?(s.v<=25?[58,138,64]:s.v<=60?[219,160,23]:[196,69,54]):(s.v>=60?[58,138,64]:s.v>=30?[219,160,23]:[196,69,54]);pdf.setFillColor(245,248,245);pdf.roundedRect(kx,y,kw,20,2,2,'F');pdf.setFont(undefined,'bold');pdf.setFontSize(16);pdf.setTextColor.apply(pdf,c2);pdf.text(s.v+'%',kx+kw/2,y+11,{align:'center'});pdf.setFontSize(6.5);pdf.setTextColor.apply(pdf,cMu);pdf.setFont(undefined,'normal');pdf.text(s.l,kx+kw/2,y+18,{align:'center'});});y+=28;
+  var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);
+  var datos=[['Población total',(r.pT||0).toLocaleString()+' hab.'],['Hombres / Mujeres',(r.pH||0).toLocaleString()+' / '+(r.pM||0).toLocaleString()],['Viviendas',(r.vT||0).toLocaleString()],['Agua cañería',(r.aCan||0).toLocaleString()+(at?' ('+Math.round((r.aCan||0)/at*100)+'%)':'')],['Sin saneamiento',(r.snNo||0).toLocaleString()+(st?' ('+Math.round((r.snNo||0)/st*100)+'%)':'')],['Electricidad pública',(r.elPub||0).toLocaleString()],['Coordenadas',r.lat?r.lat.toFixed(5)+', '+r.lon.toFixed(5):'Sin dato']];
+  pdf.setFontSize(9);pdf.setFont(undefined,'bold');pdf.setTextColor.apply(pdf,cA);pdf.text('DATOS PRINCIPALES',mL,y);y+=6;
+  datos.forEach(function(d,i2){if(i2%2===0){pdf.setFillColor(245,248,245);pdf.rect(mL,y-4,cW,7,'F');}pdf.setFont(undefined,'normal');pdf.setFontSize(8);pdf.setTextColor.apply(pdf,cI);pdf.text(d[0],mL+2,y);pdf.text(d[1],pW-mR-2,y,{align:'right'});y+=7;});y+=5;
+  pdf.setFontSize(9);pdf.setFont(undefined,'bold');pdf.setTextColor.apply(pdf,cA);pdf.text('OBSERVACIONES',mL,y);y+=6;pdf.setFillColor(250,249,244);pdf.rect(mL,y-4,cW,25,'F');pdf.setFont(undefined,'normal');pdf.setFontSize(7.5);pdf.setTextColor.apply(pdf,cMu);pdf.text('(Espacio para anotaciones del ingeniero de campo)',mL+2,y+2);y+=30;
+  pdf.setFontSize(6.5);pdf.setTextColor.apply(pdf,cMu);pdf.text('Fuente: Censo INE Bolivia',mL,291);pdf.text(new Date().toLocaleDateString('es-BO'),pW-mR,291,{align:'right'});
+  pdf.save(r.com.replace(/[^a-zA-Z0-9]/g,'_')+'_ficha_mejorada.pdf');
 };
 
-})();
+/* ════════════════════ PDF PROVINCIA ════════════════════ */
+window.generarPDFProvincia=function(){
+  var prov=$id('fProv')&&$id('fProv').value;if(!prov){alert('Seleccioná una provincia primero.');return;}
+  if(typeof window.jspdf==='undefined'){alert('jsPDF no disponible.');return;}
+  var base=DATOS.filter(function(r){return r.prov===prov;});if(!base.length){alert('Sin datos.');return;}
+  var jsPDF=window.jspdf.jsPDF;var pdf=new jsPDF('p','mm','a4');
+  var pW=210,mL=14,mR=14,cW=pW-mL-mR,y=14;var cA=[31,122,140],cMu=[112,122,115],cI=[19,32,28];
+  pdf.setFillColor.apply(pdf,cA);pdf.rect(0,0,pW,24,'F');pdf.setTextColor(255,255,255);pdf.setFont(undefined,'bold');pdf.setFontSize(11);pdf.text('PROVINCIA '+prov.toUpperCase(),pW/2,10,{align:'center'});pdf.setFontSize(7.5);pdf.setFont(undefined,'normal');pdf.text(base.length+' comunidades · '+new Date().toLocaleDateString('es-BO'),pW/2,18,{align:'center'});y=32;
+  var totP=base.reduce(function(s,r){return s+(r.pT||0);},0);var sinA=base.reduce(function(s,r){var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);return s+(at>0?at-((r.aCan||0)+(r.aPil||0)):0);},0);
+  var kpis=[['Comunidades',base.length],['Población',totP.toLocaleString()],['Sin agua est.',Math.round(sinA/Math.max(1,totP)*100)+'%'],['Score prom.',Math.round(base.reduce(function(s,r){return s+scoreR(r);},0)/base.length)]];var kW=cW/4-3;
+  kpis.forEach(function(k,i){var kx=mL+i*(kW+4);pdf.setFillColor(245,248,245);pdf.roundedRect(kx,y,kW,20,2,2,'F');pdf.setFont(undefined,'bold');pdf.setFontSize(13);pdf.setTextColor.apply(pdf,cA);pdf.text(String(k[1]),kx+kW/2,y+11,{align:'center'});pdf.setFontSize(6);pdf.setTextColor.apply(pdf,cMu);pdf.setFont(undefined,'normal');pdf.text(k[0],kx+kW/2,y+18,{align:'center'});});y+=28;
+  pdf.setFontSize(9);pdf.setFont(undefined,'bold');pdf.setTextColor.apply(pdf,cA);pdf.text('TOP COMUNIDADES POR PRIORIDAD',mL,y);y+=6;
+  base.slice().sort(function(a,b){return scoreR(b)-scoreR(a);}).slice(0,20).forEach(function(r,i){if(y>275){pdf.addPage();y=14;}if(i%2===0){pdf.setFillColor(245,248,245);pdf.rect(mL,y-4,cW,7,'F');}pdf.setFont(undefined,'normal');pdf.setFontSize(8);pdf.setTextColor.apply(pdf,cI);pdf.text((i+1)+'. '+r.com.substring(0,30)+' ('+r.mun+')',mL+2,y);var sc=scoreR(r);pdf.setTextColor.apply(pdf,sc>=60?[196,69,54]:sc>=30?[210,140,30]:[46,122,56]);pdf.setFont(undefined,'bold');pdf.text(sc+'/100',pW-mR-2,y,{align:'right'});y+=7;});
+  pdf.setFontSize(6.5);pdf.setTextColor.apply(pdf,cMu);pdf.text('Fuente: Censo INE Bolivia',mL,291);pdf.save('Provincia_'+prov.replace(/\s/g,'_')+'.pdf');
+};
 
-// ================================================================
-// INIT — ejecutar cuando el DOM esté listo
-// ================================================================
-if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',function(){injectHTML();wrapFunctions();});
-}else{
-  injectHTML();wrapFunctions();
-}
+/* ════════════════════ PREINVERSIÓN PDF ════════════════════ */
+window.generarPreinversion=function(progId){
+  var p=progId?window.programas[progId]:null;var coms=p?Object.keys(p.seleccion||{}).filter(function(k){return p.seleccion[k];}).map(function(k){return DATOS.find(function(r){return cId(r)===k;});}).filter(Boolean):(filtrados.length?filtrados.slice(0,60):DATOS.slice(0,60));
+  if(!coms.length){alert('Sin comunidades.');return;}if(typeof window.jspdf==='undefined'){alert('jsPDF no disponible.');return;}
+  var ca=parseFloat($id('cCA')&&$id('cCA').value)||8500;var cs2=parseFloat($id('cCS')&&$id('cCS').value)||5200;
+  var jsPDF=window.jspdf.jsPDF;var pdf=new jsPDF('p','mm','a4');var pW=210,mL=14,mR=14,cW=pW-mL-mR,y=14;var cA=[31,122,140],cMu=[112,122,115],cI=[19,32,28];
+  pdf.setFillColor.apply(pdf,cA);pdf.rect(0,0,pW,24,'F');pdf.setTextColor(255,255,255);pdf.setFont(undefined,'bold');pdf.setFontSize(11);pdf.text('REPORTE DE PREINVERSIÓN',pW/2,10,{align:'center'});pdf.setFontSize(7.5);pdf.setFont(undefined,'normal');pdf.text((p?p.nombre:'Selección')+' · '+coms.length+' comunidades · '+new Date().toLocaleDateString('es-BO'),pW/2,18,{align:'center'});y=32;
+  pdf.setFillColor.apply(pdf,cA);pdf.rect(mL,y-4,cW,8,'F');pdf.setTextColor(255,255,255);pdf.setFont(undefined,'bold');pdf.setFontSize(7.5);['Comunidad','Mun.','Pob.','Sin agua','Sin sanea.','Bs agua','Bs sanea.','Total Bs'].forEach(function(h,i2){pdf.text(h,[mL+2,mL+50,mL+70,mL+86,mL+106,mL+126,mL+150,pW-mR-2][i2]||mL+2,y,{align:i2>=5?'right':'left'});});y+=8;
+  var tot=0;coms.forEach(function(r,i2){if(y>275){pdf.addPage();y=14;}var at=(r.aCan||0)+(r.aPil||0)+(r.aPozo||0)+(r.aRio||0)+(r.aMan||0)+(r.aLlu||0);var st=(r.snAlc||0)+(r.snCam||0)+(r.snPozo||0)+(r.snNo||0);var sinA2=at>0?Math.round(at-((r.aCan||0)+(r.aPil||0))):(r.vT||0);var sinS2=st>0?Math.round(r.snNo||0):(r.vT||0);var iA=sinA2*ca,iS=sinS2*cs2,iT=iA+iS;tot+=iT;if(i2%2===0){pdf.setFillColor(245,248,245);pdf.rect(mL,y-4,cW,7,'F');}pdf.setFont(undefined,'normal');pdf.setFontSize(7.5);pdf.setTextColor.apply(pdf,cI);pdf.text(r.com.substring(0,16),mL+2,y);pdf.text(r.mun.substring(0,12),mL+50,y);pdf.text(String(r.pT||0),mL+70,y);pdf.text(String(sinA2),mL+86,y);pdf.text(String(sinS2),mL+106,y);pdf.setFont(undefined,'bold');pdf.text((iA/1e3).toFixed(0)+'K',mL+150,y,{align:'right'});pdf.text((iT/1e3).toFixed(0)+'K',pW-mR-2,y,{align:'right'});y+=7;});
+  y+=4;pdf.setFillColor.apply(pdf,cA);pdf.rect(mL,y-4,cW,9,'F');pdf.setTextColor(255,255,255);pdf.setFont(undefined,'bold');pdf.setFontSize(9);pdf.text('TOTAL ESTIMADO: '+fmtM(tot),mL+2,y+1);y+=14;
+  pdf.setFontSize(6.5);pdf.setTextColor.apply(pdf,cMu);pdf.setFont(undefined,'normal');pdf.text('* Estimación basada en déficit INE. Requiere verificación técnica en campo.',mL,y);
+  pdf.setFontSize(7);pdf.text('Fuente: Censo INE Bolivia',mL,291);pdf.save('Preinversion_'+(p?p.nombre:'Seleccion').replace(/[^a-zA-Z0-9]/g,'_')+'.pdf');
+};
+
+/* ════════════════════ SWIPE MODAL ════════════════════ */
+(function(){var card=$id('modalCard');if(!card)return;var sy=0,drag=false;card.addEventListener('touchstart',function(e){var b=$id('mBody');if(b&&b.scrollTop<=2){sy=e.touches[0].clientY;drag=true;}},{passive:true});card.addEventListener('touchmove',function(e){if(!drag)return;var dy=e.touches[0].clientY-sy;if(dy>0){card.style.cssText='transform:translateY('+Math.min(dy*.55,160)+'px);opacity:'+Math.max(1-dy/350,.5)+';transition:none';}},{passive:true});card.addEventListener('touchend',function(e){if(!drag)return;drag=false;var dy=e.changedTouches[0].clientY-sy;card.style.transition='transform .2s,opacity .2s';if(dy>100){card.style.transform='translateY(100%)';card.style.opacity='0';setTimeout(function(){cerrarModal();card.removeAttribute('style');},200);}else card.removeAttribute('style');},{passive:true});})();
+
+/* ════════════════════ INIT ════════════════════ */
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){injectHTML();wrapFunctions();});}else{injectHTML();wrapFunctions();}
+setTimeout(function(){if(window.mapa)renderPOIs();},3500);
 
 })();
 
